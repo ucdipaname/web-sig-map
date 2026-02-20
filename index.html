@@ -1,20 +1,80 @@
-<!DOCTYPE html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>Carte Web SIG</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css" />
-    <style>
-        #map { height: 100vh; }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
-    <script src="script.js"></script>
+var blueIcon = new L.Icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize:[28,28]});
+var greenIcon = new L.Icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/854/854878.png',iconSize:[28,28]});
+var purpleIcon = new L.Icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/3176/3176363.png',iconSize:[28,28]});
+
+// EXEMPLES (Paris)
+L.marker([48.8708,2.3318],{icon:blueIcon}).bindPopup("Ambassade exemple").addTo(ambassades);
+L.marker([48.8584,2.2945],{icon:greenIcon}).bindPopup("Tour Eiffel").addTo(tourisme);
+L.marker([48.8527,2.3508],{icon:purpleIcon}).bindPopup("Notre-Dame").addTo(religion);
+
+L.control.layers(null,{
+    "Ambassades":ambassades,
+    "Sites touristiques":tourisme,
+    "Sites religieux":religion
+}).addTo(map);
+
+// ==========================
+// 4. DESSINER OBJETS SIG
+// ==========================
+var drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
+var drawControl = new L.Control.Draw({
+    edit:{featureGroup:drawnItems},
+    draw:{
+        polygon:true,
+        polyline:true,
+        rectangle:true,
+        circle:false,
+        marker:true
+    }
+});
+map.addControl(drawControl);
+
+// Création d'objet
+map.on(L.Draw.Event.CREATED,function(e){
+    var layer=e.layer;
+
+    var content=document.createElement("div");
+    content.innerHTML='<b>Nom :</b><br><input id="name"><br><b>Couleur :</b><br><input type="color" id="color" value="#ff0000"><br><button onclick="saveFeature()">Valider</button>';
+
+    layer.bindPopup(content).openPopup();
+    drawnItems.addLayer(layer);
+    window.currentLayer=layer;
+});
+
+// Sauvegarder style et texte
+function saveFeature(){
+    var name=document.getElementById("name").value;
+    var color=document.getElementById("color").value;
+
+    if(window.currentLayer.setStyle){
+        window.currentLayer.setStyle({color:color,fillColor:color});
+    }
+    window.currentLayer.bindPopup(name);
+    map.closePopup();
+}
+
+// ==========================
+// 5. EXPORT GEOJSON
+// ==========================
+var exportBtn=L.control({position:'topleft'});
+exportBtn.onAdd=function(){
+ var div=L.DomUtil.create('div','legend');
+ div.innerHTML='<button onclick="exportGeoJSON()">Exporter GeoJSON</button>';
+ return div;
+};
+exportBtn.addTo(map);
+
+function exportGeoJSON(){
+    var data=drawnItems.toGeoJSON();
+    var str="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(data));
+    var dl=document.createElement('a');
+    dl.href=str;
+    dl.download="mes_donnees_SIG.geojson";
+    dl.click();
+}
+</script>
 </body>
 </html>
-
