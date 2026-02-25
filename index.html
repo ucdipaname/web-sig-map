@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Paris Geo-Tourisme Pro - GPS & Design</title>
+    <title>Paris Geo Pro - Debug</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
@@ -10,101 +10,61 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     
     <style>
-        :root {
-            --sidebar-bg: #1a1c23;
-            --panel-header: #252836;
-            --accent-color: #3498db;
-            --route-color: #2ecc71;
-            --progress-color: #e67e22;
-            --text-main: #ecf0f1;
+        body { margin: 0; padding: 0; display: flex; height: 100vh; font-family: sans-serif; overflow: hidden; }
+        
+        #sidebar { 
+            width: 350px; 
+            background: #1a1c23; 
+            color: white; 
+            padding: 15px; 
+            overflow-y: auto; 
+            z-index: 10; /* Assure que la barre est au-dessus */
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
         }
 
-        body { margin: 0; display: flex; font-family: 'Inter', sans-serif; background: var(--sidebar-bg); overflow: hidden; }
-        #sidebar { width: 360px; height: 100vh; background: var(--sidebar-bg); color: var(--text-main); padding: 20px; box-sizing: border-box; overflow-y: auto; z-index: 2000; border-right: 1px solid #333; }
-        #map { flex-grow: 1; height: 100vh; }
+        #map { 
+            flex: 1; 
+            height: 100vh; 
+            z-index: 1; /* La carte est en dessous des menus */
+        }
 
-        .control-panel { background: var(--panel-header); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
-        #save-indicator { display: none; text-align: right; font-size: 0.7rem; color: var(--route-color); margin-bottom: 5px; }
-        #poi-counter { background: var(--accent-color); color: white; font-size: 0.65rem; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
-
-        .btn { width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; }
-        .search-input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #1a1c23; color: white; margin-bottom: 5px; box-sizing: border-box; }
-
-        /* Style bouton GPS sur carte */
-        .leaflet-control-locate { background: white; width: 34px; height: 34px; line-height: 34px; text-align: center; cursor: pointer; box-shadow: 0 1px 5px rgba(0,0,0,0.4); border-radius: 4px; font-size: 1.2rem; }
+        .control-panel { background: #252836; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
+        .btn { width: 100%; padding: 8px; margin-top: 5px; cursor: pointer; border: none; border-radius: 4px; color: white; font-weight: bold; }
+        .search-input { width: 100%; padding: 8px; box-sizing: border-box; background: #1a1c23; color: white; border: 1px solid #444; border-radius: 4px; }
         
-        /* Étiquettes Texte */
-        .text-label-on-map { background: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; padding: 3px 8px; border-radius: 4px; font-weight: bold; white-space: nowrap; box-shadow: 2px 2px 6px rgba(0,0,0,0.2); }
-
-        .fiche-detail { background: white; color: #1a1c23; padding: 20px; border-radius: 12px; margin-top: 20px; display: none; border-left: 5px solid var(--accent-color); }
-        .toolbox { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-        .icon-item { background: #34495e; padding: 10px; border-radius: 8px; text-align: center; cursor: grab; font-size: 1.5rem; }
-        
-        #progress-container { margin-top: 10px; background: #111; padding: 10px; border-radius: 8px; display: none; }
-        .progress-bar-bg { width: 100%; background: #333; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 5px; }
-        #progress-bar { width: 0%; height: 100%; background: var(--progress-color); transition: width 0.3s; }
+        /* Style du texte sur la carte */
+        .text-label-on-map { background: white; padding: 2px 5px; border-radius: 3px; border: 1px solid #333; font-weight: bold; white-space: nowrap; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <div id="save-indicator">💾 Enregistré</div>
-
+    <h2 style="font-size: 1rem; color: #3498db;">PARIS GEO PRO</h2>
+    
     <div class="control-panel">
-        <div style="display: flex; justify-content: space-between;">
-            <div id="temp-val" style="font-size: 1.4rem; font-weight: bold;">--°C</div>
-            <div style="text-align: right; font-size: 0.7rem; opacity: 0.8;">Paris, FR<br><span id="weather-desc">Chargement...</span></div>
-        </div>
+        <div id="temp-val" style="font-size: 1.2rem;">--°C</div>
+        <div id="poi-counter" style="font-size: 0.8rem; color: #95a5a6;">0 éléments</div>
     </div>
 
     <div class="control-panel">
-        <input type="text" id="manual-search" class="search-input" placeholder="Rechercher une adresse..." onkeypress="if(event.key === 'Enter') manualSearch()">
-        <button class="btn" style="background: var(--accent-color);" onclick="manualSearch()">Ajouter le point</button>
+        <input type="text" id="manual-search" class="search-input" placeholder="Adresse...">
+        <button class="btn" style="background: #3498db;" onclick="manualSearch()">Rechercher</button>
     </div>
 
     <div class="control-panel">
-        <label style="font-size: 0.65rem; font-weight: bold; color: #95a5a6;">🎨 COULEUR ACTIVE</label>
-        <input type="color" id="active-color" value="#3498db" style="width: 100%; height: 30px; border: none; cursor: pointer; background: none;">
+        <label style="font-size: 0.7rem;">COULEUR ACTIVE</label>
+        <input type="color" id="active-color" value="#3498db" style="width: 100%; cursor: pointer;">
     </div>
 
     <div class="control-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label style="font-size: 0.65rem; font-weight: bold; color: #95a5a6;">PROJET ACTIF</label>
-            <span id="poi-counter">0 éléments</span>
-        </div>
-        <div style="display: flex; gap: 5px; margin-top:5px;">
-            <select id="project-selector" class="btn" style="margin:0; background: #34495e; flex-grow: 1;" onchange="switchProject()"></select>
-            <button class="btn" style="margin:0; width: 40px; background: var(--route-color);" onclick="createNewProject()">+</button>
-            <button class="btn" style="margin:0; width: 40px; background: #e74c3c;" onclick="deleteProject()">🗑️</button>
-        </div>
+        <button class="btn" style="background: #8e44ad;" onclick="activateTextTool()">🔤 Outil Texte</button>
+        <button class="btn" style="background: #2c3e50;" onclick="exportToCSV()">📤 Export CSV</button>
     </div>
 
-    <div class="control-panel">
-        <div style="display: flex; gap: 5px;">
-            <button class="btn" style="margin:0; background: #2c3e50; font-size: 0.8rem;" onclick="document.getElementById('csv-file').click()">📥 Import</button>
-            <button class="btn" style="margin:0; background: #2c3e50; font-size: 0.8rem;" onclick="exportToCSV()">📤 Export</button>
-        </div>
-        <input type="file" id="csv-file" accept=".csv" style="display: none;" onchange="handleCSV(this)">
-        <div id="progress-container">
-            <div style="display: flex; justify-content: space-between; font-size: 0.6rem;"><span>Importation...</span><span id="progress-percent">0%</span></div>
-            <div class="progress-bar-bg"><div id="progress-bar"></div></div>
-        </div>
-    </div>
-
-    <div class="control-panel">
-        <div class="toolbox">
-            <div class="icon-item" draggable="true" data-icon="🏨">🏨</div>
-            <div class="icon-item" draggable="true" data-icon="🍴">🍴</div>
-            <div class="icon-item" draggable="true" data-icon="📸">📸</div>
-            <div class="icon-item" draggable="true" data-icon="📍">📍</div>
-        </div>
-        <button class="btn" style="background: #8e44ad;" onclick="activateTextTool()">🔤 Ajouter un texte</button>
-    </div>
-
-    <div id="fiche" class="fiche-detail">
-        <h3 id="fiche-titre" style="margin:0; font-size: 1rem;">Détails</h3>
-        <div id="fiche-addr" class="addr-badge">Adresse...</div>
-        <button class="btn" style="background: #e74c3c; padding: 5px;" onclick="deleteElement()">Supprimer</button>
+    <div id="fiche" class="control-panel" style="display:none; background: white; color: black;">
+        <h4 id="fiche-titre" style="margin:0"></h4>
+        <p id="fiche-addr" style="font-size: 0.8rem;"></p>
+        <button class="btn" style="background: #e74c3c;" onclick="deleteElement()">Supprimer</button>
     </div>
 </div>
 
@@ -115,230 +75,115 @@
 <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.js"></script>
 
 <script>
+    // Initialisation
     const map = L.map('map').setView([48.8588, 2.347], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM' }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
     const markersCluster = L.markerClusterGroup().addTo(map);
     const drawnItems = new L.FeatureGroup().addTo(map);
-    let selectedLayer = null;
-    let currentProject = "Default";
     let isTextToolActive = false;
-    let draggedIcon = "📍";
+    let selectedLayer = null;
 
-    // --- BOUTON GEOLOCALISATION ---
-    const locateCtrl = L.Control.extend({
-        options: { position: 'topleft' },
-        onAdd: function () {
-            const div = L.DomUtil.create('div', 'leaflet-control-locate');
-            div.innerHTML = '🎯'; div.title = "Ma position";
-            div.onclick = () => map.locate({setView: true, maxZoom: 16});
-            return div;
-        }
-    });
-    map.addControl(new locateCtrl());
-
-    map.on('locationfound', (e) => {
-        L.circle(e.latlng, { radius: e.accuracy / 2, color: '#3498db' }).addTo(map);
-        L.marker(e.latlng).addTo(map).bindPopup("Vous êtes ici").openPopup();
-    });
-
-    // --- DESSIN & COULEURS ---
+    // --- OUTILS DE DESSIN ---
     const drawControl = new L.Control.Draw({
         edit: { featureGroup: drawnItems },
         draw: { polygon: true, polyline: true, rectangle: true, circle: true, marker: false }
     });
     map.addControl(drawControl);
 
-    map.on(L.Draw.Event.DRAWSTART, () => {
-        const c = document.getElementById('active-color').value;
-        drawControl.setDrawingOptions({
-            polyline: { shapeOptions: { color: c } },
-            polygon: { shapeOptions: { color: c, fillColor: c, fillOpacity: 0.3 } },
-            rectangle: { shapeOptions: { color: c, fillColor: c, fillOpacity: 0.3 } },
-            circle: { shapeOptions: { color: c, fillColor: c, fillOpacity: 0.3 } }
-        });
-    });
-
     map.on(L.Draw.Event.CREATED, (e) => {
         const layer = e.layer;
-        const note = prompt("Nom de l'élément ?");
+        const color = document.getElementById('active-color').value;
+        if (layer.setStyle) layer.setStyle({ color: color, fillColor: color });
         drawnItems.addLayer(layer);
-        if(note) layer.bindPopup(note);
-        saveToLocal();
+        updateCounter();
     });
 
-    // --- TEXTE ---
-    function activateTextTool() { isTextToolActive = true; map.getContainer().style.cursor = "crosshair"; }
+    // --- GEOLOCALISATION ---
+    const LocateBtn = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function() {
+            const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            btn.innerHTML = '<a style="background:white; cursor:pointer; display:block; width:30px; height:30px; line-height:30px; text-align:center;">🎯</a>';
+            btn.onclick = () => map.locate({setView: true, maxZoom: 16});
+            return btn;
+        }
+    });
+    map.addControl(new LocateBtn());
+
+    // --- OUTIL TEXTE ---
+    function activateTextTool() {
+        isTextToolActive = true;
+        map.getContainer().style.cursor = "crosshair";
+    }
 
     map.on('click', (e) => {
         if (!isTextToolActive) return;
-        const txt = prompt("Votre texte :");
+        const txt = prompt("Texte :");
         const color = document.getElementById('active-color').value;
         if (txt) {
             const tm = L.marker(e.latlng, {
-                icon: L.divIcon({ className: 'text-label-on-map', html: `<span style="color:${color}">${txt}</span>`, iconSize: null }),
-                isTextLabel: true, content: txt, color: color
+                icon: L.divIcon({ className: 'text-label-on-map', html: `<span style="color:${color}">${txt}</span>` }),
+                isText: true, content: txt
             }).addTo(drawnItems);
             tm.on('click', (ev) => {
-                L.DomEvent.stopPropagation(ev); selectedLayer = tm;
-                document.getElementById('fiche').style.display = 'block';
-                document.getElementById('fiche-titre').innerText = "Texte";
-                document.getElementById('fiche-addr').innerText = txt;
+                L.DomEvent.stopPropagation(ev);
+                showFiche("Texte", txt, tm);
             });
         }
-        isTextToolActive = false; map.getContainer().style.cursor = "";
-        saveToLocal();
+        isTextToolActive = false;
+        map.getContainer().style.cursor = "";
+        updateCounter();
     });
 
-    // --- LOGIQUE CORE ---
-    function saveToLocal() {
-        const markers = [];
-        markersCluster.eachLayer(l => markers.push({ latlng: l.getLatLng(), title: l.options.title, address: l.options.address, icon: l.options.icon.options.html }));
-        const drawings = [];
-        drawnItems.eachLayer(l => {
-            if(l.options.isTextLabel) drawings.push({ type: 'text', latlng: l.getLatLng(), content: l.options.content, color: l.options.color });
-            else drawings.push({ type: 'shape', geojson: l.toGeoJSON(), popup: l.getPopup() ? l.getPopup().getContent() : "" });
-        });
-        localStorage.setItem(`geoData_${currentProject}`, JSON.stringify({markers, drawings}));
-        updateCounter();
-        const ind = document.getElementById('save-indicator');
-        ind.style.display = 'block'; ind.style.opacity = '1';
-        setTimeout(() => ind.style.opacity = '0', 1000);
+    // --- FONCTIONS GENERALES ---
+    function updateCounter() {
+        const total = markersCluster.getLayers().length + drawnItems.getLayers().length;
+        document.getElementById('poi-counter').innerText = `${total} éléments`;
     }
 
-    function switchProject() {
-        currentProject = document.getElementById('project-selector').value;
-        markersCluster.clearLayers(); drawnItems.clearLayers();
-        const data = JSON.parse(localStorage.getItem(`geoData_${currentProject}`));
-        if(data) {
-            if(data.markers) data.markers.forEach(m => createMarker(m.latlng, m.title, m.address, m.icon));
-            if(data.drawings) data.drawings.forEach(d => {
-                if(d.type === 'text') {
-                    const tm = L.marker(d.latlng, {
-                        icon: L.divIcon({ className: 'text-label-on-map', html: `<span style="color:${d.color}">${d.content}</span>`, iconSize: null }),
-                        isTextLabel: true, content: d.content, color: d.color
-                    }).addTo(drawnItems);
-                    tm.on('click', () => { selectedLayer = tm; document.getElementById('fiche').style.display = 'block'; });
-                } else {
-                    L.geoJSON(d.geojson, { onEachFeature: (f, l) => {
-                        drawnItems.addLayer(l); if(d.popup) l.bindPopup(d.popup);
-                        l.on('click', () => { selectedLayer = l; document.getElementById('fiche').style.display = 'block'; });
-                    }});
-                }
-            });
-        }
-        updateCounter();
+    function showFiche(titre, addr, layer) {
+        selectedLayer = layer;
+        document.getElementById('fiche').style.display = 'block';
+        document.getElementById('fiche-titre').innerText = titre;
+        document.getElementById('fiche-addr').innerText = addr;
     }
 
-    function createMarker(latlng, title, addr, iconHtml) {
-        const m = L.marker(latlng, {
-            icon: L.divIcon({ html: iconHtml.includes('div') ? iconHtml : `<div style="font-size:24px;">${iconHtml}</div>`, className: 'custom-icon', iconSize:[30,30] }),
-            title: title, address: addr
-        });
-        m.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev); selectedLayer = m;
-            document.getElementById('fiche').style.display = 'block';
-            document.getElementById('fiche-titre').innerText = title;
-            document.getElementById('fiche-addr').innerText = addr;
-        });
-        markersCluster.addLayer(m); return m;
+    function deleteElement() {
+        if (!selectedLayer) return;
+        if (drawnItems.hasLayer(selectedLayer)) drawnItems.removeLayer(selectedLayer);
+        else markersCluster.removeLayer(selectedLayer);
+        document.getElementById('fiche').style.display = 'none';
+        updateCounter();
     }
 
     async function manualSearch() {
-        const v = document.getElementById('manual-search').value; if(!v) return;
+        const v = document.getElementById('manual-search').value;
         const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(v)}&limit=1`);
         const d = await r.json();
         if(d.features.length > 0) {
             const c = d.features[0].geometry.coordinates;
-            createMarker([c[1], c[0]], v, d.features[0].properties.label, "📍");
-            map.setView([c[1], c[0]], 15); saveToLocal();
-            document.getElementById('manual-search').value = "";
+            const m = L.marker([c[1], c[0]]).addTo(markersCluster);
+            m.on('click', () => showFiche(v, d.features[0].properties.label, m));
+            map.setView([c[1], c[0]], 15);
+            updateCounter();
         }
-    }
-
-    async function handleCSV(input) {
-        const f = input.files[0]; if(!f) return;
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const lines = e.target.result.split('\n').filter(l => l.includes(';'));
-            document.getElementById('progress-container').style.display = 'block';
-            for(let i=0; i<lines.length; i++) {
-                const [n, a] = lines[i].split(';');
-                const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(a)}&limit=1`);
-                const d = await r.json();
-                if(d.features.length > 0) {
-                    const c = d.features[0].geometry.coordinates;
-                    createMarker([c[1], c[0]], n.trim(), d.features[0].properties.label, "📍");
-                }
-                let p = Math.round(((i+1)/lines.length)*100);
-                document.getElementById('progress-bar').style.width = p+'%';
-                document.getElementById('progress-percent').innerText = p+'%';
-            }
-            setTimeout(() => document.getElementById('progress-container').style.display='none', 2000);
-            saveToLocal();
-        };
-        reader.readAsText(f);
     }
 
     function exportToCSV() {
-        let csv = "Nom;Adresse\n";
-        markersCluster.eachLayer(l => csv += `${l.options.title};${l.options.address}\n`);
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
-        a.download = `export_${currentProject}.csv`; a.click();
+        let csv = "Nom;Coordonnées\n";
+        markersCluster.eachLayer(l => { csv += `Point;${l.getLatLng().lat},${l.getLatLng().lng}\n`; });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+        a.download = "export_paris.csv"; a.click();
     }
 
-    function deleteElement() {
-        if(!selectedLayer || !confirm("Supprimer ?")) return;
-        if(markersCluster.hasLayer(selectedLayer)) markersCluster.removeLayer(selectedLayer);
-        else drawnItems.removeLayer(selectedLayer);
-        saveToLocal(); document.getElementById('fiche').style.display = 'none';
-    }
+    // Météo simplifiée
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=48.85&longitude=2.34&current_weather=true')
+        .then(r => r.json()).then(d => {
+            document.getElementById('temp-val').innerText = `${Math.round(d.current_weather.temperature)}°C`;
+        });
 
-    function createNewProject() {
-        const n = prompt("Nom du projet ?");
-        if(n) {
-            let p = JSON.parse(localStorage.getItem('geo_List')) || ["Default"];
-            p.push(n); localStorage.setItem('geo_List', JSON.stringify(p));
-            currentProject = n; updateProjectSelector(); switchProject();
-        }
-    }
-
-    function updateProjectSelector() {
-        const p = JSON.parse(localStorage.getItem('geo_List')) || ["Default"];
-        document.getElementById('project-selector').innerHTML = p.map(x => `<option value="${x}" ${x===currentProject?'selected':''}>${x}</option>`).join('');
-    }
-
-    function deleteProject() {
-        if(currentProject === "Default" || !confirm("Supprimer le projet ?")) return;
-        localStorage.removeItem(`geoData_${currentProject}`);
-        let p = JSON.parse(localStorage.getItem('geo_List')).filter(x => x !== currentProject);
-        localStorage.setItem('geo_List', JSON.stringify(p));
-        currentProject = "Default"; updateProjectSelector(); switchProject();
-    }
-
-    function updateCounter() {
-        const total = markersCluster.getLayers().length + drawnItems.getLayers().length;
-        document.getElementById('poi-counter').innerText = `${total} élément${total > 1 ? 's' : ''}`;
-    }
-
-    async function fetchWeather() {
-        const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=48.85&longitude=2.34&current_weather=true');
-        const d = await r.json();
-        document.getElementById('temp-val').innerText = `${Math.round(d.current_weather.temperature)}°C`;
-        document.getElementById('weather-desc').innerText = "Ciel dégagé";
-    }
-
-    // Drag & Drop
-    document.querySelectorAll('.icon-item').forEach(i => i.ondragstart = (e) => draggedIcon = e.target.dataset.icon);
-    document.getElementById('map').ondragover = (e) => e.preventDefault();
-    document.getElementById('map').ondrop = (e) => {
-        const rect = document.getElementById('map').getBoundingClientRect();
-        const latlng = map.containerPointToLatLng([e.clientX-rect.left, e.clientY-rect.top]);
-        const n = prompt("Nom ?");
-        if(n) { createMarker(latlng, n, "Position manuelle", draggedIcon); saveToLocal(); }
-    };
-
-    window.onload = () => { fetchWeather(); updateProjectSelector(); switchProject(); };
 </script>
 </body>
 </html>
