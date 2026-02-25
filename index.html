@@ -2,176 +2,289 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Paris Geo-Tourisme Pro</title>
+    <title>Paris Geo-Tourisme Pro - Version Finale</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     
     <style>
         :root {
             --sidebar-bg: #1a1c23;
             --panel-header: #252836;
             --accent-color: #3498db;
+            --route-color: #2ecc71;
             --delete-color: #e74c3c;
             --text-main: #ecf0f1;
             --text-muted: #bdc3c7;
         }
 
-        body { margin: 0; display: flex; font-family: 'Inter', sans-serif; background: var(--sidebar-bg); }
+        body { margin: 0; display: flex; font-family: 'Inter', sans-serif; background: var(--sidebar-bg); overflow: hidden; }
+        
+        /* Sidebar */
         #sidebar { 
-            width: 320px; height: 100vh; background: var(--sidebar-bg); 
-            color: var(--text-main); padding: 25px; box-sizing: border-box; 
+            width: 350px; height: 100vh; background: var(--sidebar-bg); 
+            color: var(--text-main); padding: 20px; box-sizing: border-box; 
             overflow-y: auto; z-index: 2000; border-right: 1px solid #333;
         }
-        #map { flex-grow: 1; height: 100vh; }
 
+        /* Map */
+        #map { flex-grow: 1; height: 100vh; cursor: crosshair; }
+
+        /* Widgets & Panels */
         .control-panel { background: var(--panel-header); padding: 15px; border-radius: 12px; margin-bottom: 20px; }
         
-        button { 
-            width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; 
-            border: none; font-weight: 600; cursor: pointer; transition: 0.3s;
+        #weather-widget {
+            background: linear-gradient(135deg, #2980b9, #6dd5fa);
+            padding: 15px; border-radius: 12px; margin-bottom: 20px; color: white; text-align: center;
         }
-        .btn-export { background: var(--accent-color); color: white; }
-        .btn-reset { background: transparent; color: var(--delete-color); border: 1px solid var(--delete-color); font-size: 0.8rem; }
-        .btn-delete { background: var(--delete-color); color: white; margin-top: 20px; }
-        
-        input[type="color"] { width: 100%; height: 40px; border: none; cursor: pointer; background: none; }
-        input[type="file"] { font-size: 0.8rem; color: var(--text-muted); }
 
+        .toolbox { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .icon-item { 
+            background: #34495e; padding: 10px; border-radius: 8px; text-align: center; 
+            cursor: grab; font-size: 1.5rem; transition: 0.2s;
+        }
+        .icon-item:hover { background: var(--accent-color); transform: scale(1.1); }
+
+        #route-info {
+            display: none; border-left: 4px solid var(--route-color); background: #2c3e50;
+        }
+
+        /* Buttons */
+        .btn { 
+            width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; 
+            border: none; font-weight: 600; cursor: pointer; transition: 0.3s; 
+        }
+        .btn-route { background: var(--route-color); color: white; }
+        .btn-export { background: var(--accent-color); color: white; }
+        .btn-delete { background: var(--delete-color); color: white; }
+        .btn-clear { background: transparent; border: 1px solid #7f8c8d; color: #7f8c8d; font-size: 0.8rem; }
+
+        /* Fiche Détail */
         .fiche-detail { 
             background: white; color: #1a1c23; padding: 20px; border-radius: 12px; 
             margin-top: 20px; display: none; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         }
-        #fiche-titre { margin-top: 0; border-bottom: 2px solid var(--accent-color); }
+
+        /* Leaflet Overrides */
+        .leaflet-routing-container { display: none; } /* On cache les instructions écrites */
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Paris Map Tool</h2>
-    
+    <div id="weather-widget">
+        <div style="font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px;">Météo Paris</div>
+        <div id="temp" style="font-size: 2.2rem; font-weight: bold; margin: 5px 0;">--°C</div>
+        <div id="sky" style="font-size: 0.9rem;">Chargement...</div>
+    </div>
+
+    <div id="route-info" class="control-panel">
+        <div style="color: var(--route-color); font-weight: bold; font-size: 0.75rem; margin-bottom: 8px;">📊 ESTIMATION TRAJET</div>
+        <div id="stat-distance" style="font-size: 1.1rem; margin-bottom: 4px;">-- km</div>
+        <div id="stat-time" style="font-size: 1.1rem;">-- min</div>
+    </div>
+
+    <h3 style="font-size: 1rem; margin-bottom: 10px;">📍 Toolbox (Drag & Drop)</h3>
     <div class="control-panel">
-        <label>🎨 COULEUR DU TRACÉ</label>
-        <input type="color" id="mainColor" value="#3498db">
-        
-        <label style="margin-top:15px; display:block;">📂 IMPORT CSV</label>
-        <input type="file" id="csvLoad" accept=".csv">
-        
-        <button class="btn-export" onclick="exportData()">💾 EXPORTER GEOJSON</button>
-        <button class="btn-reset" onclick="confirmReset()">⚠️ VIDER LA CARTE</button>
+        <div class="toolbox">
+            <div class="icon-item" draggable="true" data-icon="🏨" title="Hôtel">🏨</div>
+            <div class="icon-item" draggable="true" data-icon="🍴" title="Restaurant">🍴</div>
+            <div class="icon-item" draggable="true" data-icon="📸" title="Photo">📸</div>
+            <div class="icon-item" draggable="true" data-icon="🌳" title="Parc">🌳</div>
+            <div class="icon-item" draggable="true" data-icon="🏛️" title="Musée">🏛️</div>
+            <div class="icon-item" draggable="true" data-icon="🍷" title="Bar">🍷</div>
+            <div class="icon-item" draggable="true" data-icon="🚲" title="Vélo">🚲</div>
+            <div class="icon-item" draggable="true" data-icon="⭐" title="Favori">⭐</div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <button class="btn btn-export" onclick="exportData()">💾 Exporter GeoJSON</button>
+        <button class="btn btn-clear" onclick="clearRoute()">🧹 Effacer l'itinéraire</button>
+        <button class="btn btn-clear" style="color:#e74c3c; border-color:#e74c3c; margin-top:5px;" onclick="confirmReset()">⚠️ Vider la carte</button>
     </div>
 
     <div id="fiche" class="fiche-detail">
-        <h3 id="fiche-titre">Détails</h3>
-        <p id="fiche-desc"></p>
-        <button id="deleteBtn" class="btn-delete">🗑️ SUPPRIMER CET ÉLÉMENT</button>
+        <h3 id="fiche-titre" style="margin:0 0 10px 0; border-bottom: 2px solid var(--accent-color);">Détails</h3>
+        <p id="fiche-desc" style="font-size:0.9rem; color: #555;"></p>
+        <div style="display: flex; gap: 5px; margin-top: 15px;">
+            <button class="btn btn-route" style="margin:0; font-size: 0.8rem;" onclick="setRoutePoint('start')">Départ</button>
+            <button class="btn btn-route" style="margin:0; font-size: 0.8rem; background:#27ae60" onclick="setRoutePoint('end')">Arrivée</button>
+        </div>
+        <button class="btn btn-delete" onclick="deleteElement()">🗑️ Supprimer l'élément</button>
     </div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
 <script>
+    // 1. INITIALISATION DE LA CARTE
     const map = L.map('map').setView([48.8588, 2.347], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap'
+        attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     const drawnItems = new L.FeatureGroup().addTo(map);
     let selectedLayer = null;
+    let routingControl = null;
+    let routePoints = { start: null, end: null };
 
-    // Outils de dessin
-    const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { circle: false, circlemarker: false }
+    // 2. MÉTÉO (API Open-Meteo)
+    async function updateWeather() {
+        try {
+            const resp = await fetch('https://api.open-meteo.com/v1/forecast?latitude=48.8567&longitude=2.3522&current_weather=true');
+            const data = await resp.json();
+            document.getElementById('temp').innerText = `${Math.round(data.current_weather.temperature)}°C`;
+            document.getElementById('sky').innerText = "Paris, France";
+        } catch (e) { document.getElementById('sky').innerText = "Météo indisponible"; }
+    }
+    updateWeather();
+
+    // 3. LOGIQUE DRAG & DROP
+    let draggedIcon = null;
+    document.querySelectorAll('.icon-item').forEach(item => {
+        item.addEventListener('dragstart', (e) => draggedIcon = e.target.getAttribute('data-icon'));
     });
-    map.addControl(drawControl);
 
-    // Recherche d'adresse
-    L.Control.geocoder({ defaultMarkGeocode: true, placeholder: "Rechercher..." }).addTo(map);
+    const mapDiv = document.getElementById('map');
+    mapDiv.addEventListener('dragover', (e) => e.preventDefault());
+    mapDiv.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const rect = mapDiv.getBoundingClientRect();
+        const latlng = map.containerPointToLatLng([e.clientX - rect.left, e.clientY - rect.top]);
+        const title = prompt("Donnez un nom à ce lieu :", "Étape");
+        if (title) createMarker(latlng, draggedIcon, title);
+    });
 
-    // Événement : Création d'un élément
-    map.on(L.Draw.Event.CREATED, function (e) {
-        const layer = e.layer;
-        const color = document.getElementById('mainColor').value;
-        const title = prompt("Titre de l'élément :") || "Sans titre";
-        const desc = prompt("Description :") || "";
-
-        if (layer.setStyle) layer.setStyle({ color: color, fillColor: color });
-        
-        layer.options.title = title;
-        layer.options.description = desc;
-        layer.options.savedColor = color;
-
-        layer.on('click', function() {
-            selectedLayer = layer;
-            showFiche(title, desc, color);
+    function createMarker(latlng, icon, title) {
+        const customIcon = L.divIcon({
+            html: `<div style="font-size: 24px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3))">${icon}</div>`,
+            className: 'custom-div-icon', iconSize: [30, 30], iconAnchor: [15, 15]
         });
 
-        drawnItems.addLayer(layer);
-    });
+        const marker = L.marker(latlng, { icon: customIcon }).addTo(drawnItems);
+        marker.options.title = title;
+        marker.options.iconSymbol = icon;
 
-    // Affichage de la fiche à gauche
-    function showFiche(titre, desc, couleur) {
+        marker.on('click', () => {
+            selectedLayer = marker;
+            showFiche(`${icon} ${title}`, `Position : ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
+        });
+        saveToLocalStorage();
+    }
+
+    // 4. ITINÉRAIRES ET STATISTIQUES
+    function setRoutePoint(type) {
+        if (!selectedLayer) return;
+        routePoints[type] = selectedLayer.getLatLng();
+        
+        if (routePoints.start && routePoints.end) {
+            calculateRoute();
+        } else if (type === 'start') {
+            alert("Départ défini ! Cliquez maintenant sur un autre point et choisissez 'Arrivée'.");
+        }
+    }
+
+    function calculateRoute() {
+        if (routingControl) map.removeControl(routingControl);
+        
+        routingControl = L.Routing.control({
+            waypoints: [ routePoints.start, routePoints.end ],
+            lineOptions: { styles: [{ color: '#2ecc71', weight: 6, opacity: 0.8 }] },
+            createMarker: function() { return null; }, // Utilise nos propres marqueurs
+            addWaypoints: false
+        }).addTo(map);
+
+        routingControl.on('routesfound', function(e) {
+            const summary = e.routes[0].summary;
+            document.getElementById('route-info').style.display = 'block';
+            document.getElementById('stat-distance').innerText = `📏 Distance : ${(summary.totalDistance / 1000).toFixed(2)} km`;
+            document.getElementById('stat-time').innerText = `⏱️ Temps : ~${Math.round(summary.totalTime / 60)} min`;
+        });
+    }
+
+    function clearRoute() {
+        if (routingControl) map.removeControl(routingControl);
+        routingControl = null;
+        routePoints = { start: null, end: null };
+        document.getElementById('route-info').style.display = 'none';
+    }
+
+    // 5. INTERFACE ET PERSISTANCE
+    function showFiche(titre, desc) {
         const f = document.getElementById('fiche');
         f.style.display = 'block';
-        f.style.borderLeft = `6px solid ${couleur}`;
         document.getElementById('fiche-titre').innerText = titre;
         document.getElementById('fiche-desc').innerText = desc;
     }
 
-    // Suppression d'un élément sélectionné
-    document.getElementById('deleteBtn').onclick = function() {
+    function deleteElement() {
         if(selectedLayer) {
             drawnItems.removeLayer(selectedLayer);
             document.getElementById('fiche').style.display = 'none';
-            selectedLayer = null;
+            saveToLocalStorage();
         }
-    };
+    }
 
-    // Reset complet
+    function saveToLocalStorage() {
+        const data = drawnItems.toGeoJSON();
+        let i = 0;
+        drawnItems.eachLayer(layer => {
+            if(layer.options.iconSymbol) data.features[i].properties.icon = layer.options.iconSymbol;
+            data.features[i].properties.title = layer.options.title;
+            i++;
+        });
+        localStorage.setItem('parisGeoTourV5', JSON.stringify(data));
+    }
+
+    function loadFromLocalStorage() {
+        const saved = localStorage.getItem('parisGeoTourV5');
+        if (saved) {
+            const geojson = JSON.parse(saved);
+            L.geoJSON(geojson, {
+                pointToLayer: (feature, latlng) => {
+                    const icon = feature.properties.icon || '📍';
+                    const customIcon = L.divIcon({
+                        html: `<div style="font-size: 24px;">${icon}</div>`,
+                        className: 'custom-div-icon'
+                    });
+                    return L.marker(latlng, { icon: customIcon });
+                },
+                onEachFeature: (feature, layer) => {
+                    layer.options.title = feature.properties.title;
+                    layer.options.iconSymbol = feature.properties.icon;
+                    layer.on('click', () => {
+                        selectedLayer = layer;
+                        showFiche(`${layer.options.iconSymbol || ''} ${layer.options.title}`, "Lieu sauvegardé");
+                    });
+                    drawnItems.addLayer(layer);
+                }
+            });
+        }
+    }
+    loadFromLocalStorage();
+
     function confirmReset() {
-        if(confirm("Voulez-vous vraiment effacer tous vos tracés ?")) {
+        if(confirm("Supprimer tous les marqueurs ?")) {
             drawnItems.clearLayers();
+            localStorage.removeItem('parisGeoTourV5');
+            clearRoute();
             document.getElementById('fiche').style.display = 'none';
         }
     }
 
-    // Export GeoJSON
     function exportData() {
-        const data = drawnItems.toGeoJSON();
-        const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
+        const data = JSON.stringify(drawnItems.toGeoJSON());
+        const blob = new Blob([data], {type: 'application/json'});
         const a = document.createElement('a');
-        a.href = url; a.download = 'export_paris.geojson'; a.click();
+        a.href = URL.createObjectURL(blob);
+        a.download = 'tourisme_paris_export.geojson';
+        a.click();
     }
-
-    // Géocodage CSV (Simplifié)
-    document.getElementById('csvLoad').onchange = function(e) {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const lines = event.target.result.split('\n');
-            lines.forEach(line => {
-                const parts = line.split(',');
-                if(parts.length >= 2) {
-                    fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(parts[1])}&limit=1`)
-                        .then(r => r.json())
-                        .then(data => {
-                            if(data.features.length > 0) {
-                                const c = data.features[0].geometry.coordinates;
-                                const m = L.marker([c[1], c[0]]).addTo(drawnItems);
-                                m.options.title = parts[0];
-                                m.on('click', () => showFiche(parts[0], parts[1], "#3498db"));
-                            }
-                        });
-                }
-            });
-        };
-        reader.readAsText(e.target.files[0]);
-    };
 </script>
 </body>
 </html>
