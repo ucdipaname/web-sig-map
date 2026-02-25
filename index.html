@@ -1,80 +1,177 @@
+<!DOCTYPE html>
 <html lang="fr">
-var blueIcon = new L.Icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize:[28,28]});
-var greenIcon = new L.Icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/854/854878.png',iconSize:[28,28]});
-var purpleIcon = new L.Icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/3176/3176363.png',iconSize:[28,28]});
+<head>
+    <meta charset="UTF-8">
+    <title>Paris Geo-Tourisme Pro</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    
+    <style>
+        :root {
+            --sidebar-bg: #1a1c23;
+            --panel-header: #252836;
+            --accent-color: #3498db;
+            --delete-color: #e74c3c;
+            --text-main: #ecf0f1;
+            --text-muted: #bdc3c7;
+        }
 
-// EXEMPLES (Paris)
-L.marker([48.8708,2.3318],{icon:blueIcon}).bindPopup("Ambassade exemple").addTo(ambassades);
-L.marker([48.8584,2.2945],{icon:greenIcon}).bindPopup("Tour Eiffel").addTo(tourisme);
-L.marker([48.8527,2.3508],{icon:purpleIcon}).bindPopup("Notre-Dame").addTo(religion);
+        body { margin: 0; display: flex; font-family: 'Inter', sans-serif; background: var(--sidebar-bg); }
+        #sidebar { 
+            width: 320px; height: 100vh; background: var(--sidebar-bg); 
+            color: var(--text-main); padding: 25px; box-sizing: border-box; 
+            overflow-y: auto; z-index: 2000; border-right: 1px solid #333;
+        }
+        #map { flex-grow: 1; height: 100vh; }
 
-L.control.layers(null,{
-    "Ambassades":ambassades,
-    "Sites touristiques":tourisme,
-    "Sites religieux":religion
-}).addTo(map);
+        .control-panel { background: var(--panel-header); padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+        
+        button { 
+            width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; 
+            border: none; font-weight: 600; cursor: pointer; transition: 0.3s;
+        }
+        .btn-export { background: var(--accent-color); color: white; }
+        .btn-reset { background: transparent; color: var(--delete-color); border: 1px solid var(--delete-color); font-size: 0.8rem; }
+        .btn-delete { background: var(--delete-color); color: white; margin-top: 20px; }
+        
+        input[type="color"] { width: 100%; height: 40px; border: none; cursor: pointer; background: none; }
+        input[type="file"] { font-size: 0.8rem; color: var(--text-muted); }
 
-// ==========================
-// 4. DESSINER OBJETS SIG
-// ==========================
-var drawnItems = new L.FeatureGroup();
-map.addLayer(drawnItems);
+        .fiche-detail { 
+            background: white; color: #1a1c23; padding: 20px; border-radius: 12px; 
+            margin-top: 20px; display: none; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        #fiche-titre { margin-top: 0; border-bottom: 2px solid var(--accent-color); }
+    </style>
+</head>
+<body>
 
-var drawControl = new L.Control.Draw({
-    edit:{featureGroup:drawnItems},
-    draw:{
-        polygon:true,
-        polyline:true,
-        rectangle:true,
-        circle:false,
-        marker:true
+<div id="sidebar">
+    <h2>Paris Map Tool</h2>
+    
+    <div class="control-panel">
+        <label>🎨 COULEUR DU TRACÉ</label>
+        <input type="color" id="mainColor" value="#3498db">
+        
+        <label style="margin-top:15px; display:block;">📂 IMPORT CSV</label>
+        <input type="file" id="csvLoad" accept=".csv">
+        
+        <button class="btn-export" onclick="exportData()">💾 EXPORTER GEOJSON</button>
+        <button class="btn-reset" onclick="confirmReset()">⚠️ VIDER LA CARTE</button>
+    </div>
+
+    <div id="fiche" class="fiche-detail">
+        <h3 id="fiche-titre">Détails</h3>
+        <p id="fiche-desc"></p>
+        <button id="deleteBtn" class="btn-delete">🗑️ SUPPRIMER CET ÉLÉMENT</button>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+<script>
+    const map = L.map('map').setView([48.8588, 2.347], 13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const drawnItems = new L.FeatureGroup().addTo(map);
+    let selectedLayer = null;
+
+    // Outils de dessin
+    const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
+        draw: { circle: false, circlemarker: false }
+    });
+    map.addControl(drawControl);
+
+    // Recherche d'adresse
+    L.Control.geocoder({ defaultMarkGeocode: true, placeholder: "Rechercher..." }).addTo(map);
+
+    // Événement : Création d'un élément
+    map.on(L.Draw.Event.CREATED, function (e) {
+        const layer = e.layer;
+        const color = document.getElementById('mainColor').value;
+        const title = prompt("Titre de l'élément :") || "Sans titre";
+        const desc = prompt("Description :") || "";
+
+        if (layer.setStyle) layer.setStyle({ color: color, fillColor: color });
+        
+        layer.options.title = title;
+        layer.options.description = desc;
+        layer.options.savedColor = color;
+
+        layer.on('click', function() {
+            selectedLayer = layer;
+            showFiche(title, desc, color);
+        });
+
+        drawnItems.addLayer(layer);
+    });
+
+    // Affichage de la fiche à gauche
+    function showFiche(titre, desc, couleur) {
+        const f = document.getElementById('fiche');
+        f.style.display = 'block';
+        f.style.borderLeft = `6px solid ${couleur}`;
+        document.getElementById('fiche-titre').innerText = titre;
+        document.getElementById('fiche-desc').innerText = desc;
     }
-});
-map.addControl(drawControl);
 
-// Création d'objet
-map.on(L.Draw.Event.CREATED,function(e){
-    var layer=e.layer;
+    // Suppression d'un élément sélectionné
+    document.getElementById('deleteBtn').onclick = function() {
+        if(selectedLayer) {
+            drawnItems.removeLayer(selectedLayer);
+            document.getElementById('fiche').style.display = 'none';
+            selectedLayer = null;
+        }
+    };
 
-    var content=document.createElement("div");
-    content.innerHTML='<b>Nom :</b><br><input id="name"><br><b>Couleur :</b><br><input type="color" id="color" value="#ff0000"><br><button onclick="saveFeature()">Valider</button>';
-
-    layer.bindPopup(content).openPopup();
-    drawnItems.addLayer(layer);
-    window.currentLayer=layer;
-});
-
-// Sauvegarder style et texte
-function saveFeature(){
-    var name=document.getElementById("name").value;
-    var color=document.getElementById("color").value;
-
-    if(window.currentLayer.setStyle){
-        window.currentLayer.setStyle({color:color,fillColor:color});
+    // Reset complet
+    function confirmReset() {
+        if(confirm("Voulez-vous vraiment effacer tous vos tracés ?")) {
+            drawnItems.clearLayers();
+            document.getElementById('fiche').style.display = 'none';
+        }
     }
-    window.currentLayer.bindPopup(name);
-    map.closePopup();
-}
 
-// ==========================
-// 5. EXPORT GEOJSON
-// ==========================
-var exportBtn=L.control({position:'topleft'});
-exportBtn.onAdd=function(){
- var div=L.DomUtil.create('div','legend');
- div.innerHTML='<button onclick="exportGeoJSON()">Exporter GeoJSON</button>';
- return div;
-};
-exportBtn.addTo(map);
+    // Export GeoJSON
+    function exportData() {
+        const data = drawnItems.toGeoJSON();
+        const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'export_paris.geojson'; a.click();
+    }
 
-function exportGeoJSON(){
-    var data=drawnItems.toGeoJSON();
-    var str="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(data));
-    var dl=document.createElement('a');
-    dl.href=str;
-    dl.download="mes_donnees_SIG.geojson";
-    dl.click();
-}
+    // Géocodage CSV (Simplifié)
+    document.getElementById('csvLoad').onchange = function(e) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const lines = event.target.result.split('\n');
+            lines.forEach(line => {
+                const parts = line.split(',');
+                if(parts.length >= 2) {
+                    fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(parts[1])}&limit=1`)
+                        .then(r => r.json())
+                        .then(data => {
+                            if(data.features.length > 0) {
+                                const c = data.features[0].geometry.coordinates;
+                                const m = L.marker([c[1], c[0]]).addTo(drawnItems);
+                                m.options.title = parts[0];
+                                m.on('click', () => showFiche(parts[0], parts[1], "#3498db"));
+                            }
+                        });
+                }
+            });
+        };
+        reader.readAsText(e.target.files[0]);
+    };
 </script>
 </body>
 </html>
