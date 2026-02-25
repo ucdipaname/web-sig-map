@@ -2,151 +2,137 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Paris Geo Pro - Chrome Fix</title>
+    <title>Paris Geo Pro - Force Click Fix</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     
     <style>
-        html, body { height: 100%; margin: 0; display: flex; overflow: hidden; }
-        
+        /* Reset total pour éviter les overlays fantômes */
+        html, body { 
+            height: 100%; 
+            margin: 0; 
+            padding: 0; 
+            display: flex; 
+            overflow: hidden; 
+            background: #000; 
+        }
+
         #sidebar { 
             width: 300px; 
-            background: #2c3e50; 
+            height: 100vh;
+            background: #1a1c23; 
             color: white; 
+            z-index: 9999; /* Priorité maximale pour le menu */
+            position: relative;
+            flex-shrink: 0;
             padding: 15px;
-            z-index: 5000; /* Très haut pour Chrome */
-            box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+            box-sizing: border-box;
+        }
+
+        #map-container {
+            flex-grow: 1;
+            position: relative;
+            height: 100vh;
+            z-index: 1;
         }
 
         #map { 
-            flex: 1; 
-            height: 100vh;
-            z-index: 1;
-            position: relative;
+            width: 100%;
+            height: 100%;
+            /* Force la réception des clics */
+            pointer-events: auto !important; 
+            z-index: 5;
         }
 
-        /* IMPORTANT pour Chrome : On s'assure que les contrôles Leaflet sont cliquables */
-        .leaflet-control-container {
-            pointer-events: auto !important;
-        }
+        /* Correction spécifique pour les bugs de calques Chrome */
+        .leaflet-pane { z-index: 400 !important; }
+        .leaflet-top, .leaflet-bottom { z-index: 1000 !important; }
 
-        .panel { background: #34495e; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-        input, button { width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: none; }
-        button { cursor: pointer; background: #3498db; color: white; font-weight: bold; }
-        button:hover { background: #2980b9; }
+        .btn { 
+            width: 100%; 
+            padding: 10px; 
+            margin-bottom: 10px; 
+            cursor: pointer; 
+            background: #3498db; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+        }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Paris Geo Pro</h2>
-    <div class="panel">
-        <label>Recherche d'adresse</label>
-        <input type="text" id="addrInput" placeholder="Ex: Tour Eiffel">
-        <button onclick="searchAddr()">Ajouter à la carte</button>
-    </div>
-    
-    <div class="panel">
-        <label>Outils</label>
-        <input type="color" id="favcolor" value="#ff0000">
-        <button style="background:#8e44ad" onclick="startText()">🔤 Outil Texte</button>
-    </div>
-
-    <div id="infoBox" class="panel" style="display:none; background:white; color:black">
-        <div id="infoContent"></div>
-        <button style="background:#e74c3c" onclick="removeLayer()">Supprimer</button>
-    </div>
+    <h2 style="font-size: 1.2rem;">Paris Geo Pro</h2>
+    <button class="btn" onclick="map.locate({setView: true, maxZoom: 16})">🎯 Ma Position</button>
+    <button class="btn" style="background:#8e44ad" onclick="activateText()">🔤 Outil Texte</button>
+    <div id="status" style="font-size: 0.8rem; color: #2ecc71;">Carte prête</div>
 </div>
 
-<div id="map"></div>
+<div id="map-container">
+    <div id="map"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
 <script>
-    // 1. Initialisation
-    const map = L.map('map').setView([48.8588, 2.347], 13);
+    // 1. Initialisation avec focus forcé
+    const map = L.map('map', {
+        tap: false, // Désactive la gestion spécifique au tactile qui peut bugger sur Chrome desktop
+        zoomControl: true
+    }).setView([48.8588, 2.347], 13);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const drawnItems = new L.FeatureGroup().addTo(map);
-    let selectedLyr = null;
-    let isTextActive = false;
 
-    // 2. Barre d'outils de dessin (Indispensable pour vos surfaces/lignes)
+    // 2. Ajout des outils de dessin
     const drawControl = new L.Control.Draw({
         edit: { featureGroup: drawnItems },
         draw: { marker: true, polyline: true, polygon: true, rectangle: true, circle: true }
     });
     map.addControl(drawControl);
 
-    // 3. Gestion de la création
+    // 3. Force le Focus au démarrage
+    window.onload = function() {
+        setTimeout(() => {
+            map.invalidateSize(); // Recalcule la taille de la carte
+            document.getElementById('map').focus();
+            console.log("Focus carte forcé");
+        }, 500);
+    };
+
+    // 4. Gestion du dessin
     map.on(L.Draw.Event.CREATED, function (e) {
-        const layer = e.layer;
-        const color = document.getElementById('favcolor').value;
-        if(layer.setStyle) layer.setStyle({color: color, fillColor: color});
-        
-        layer.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            showDetails("Élément tracé", layer);
-        });
-        
-        drawnItems.addLayer(layer);
+        drawnItems.addLayer(e.layer);
+        document.getElementById('status').innerText = "Élément ajouté";
     });
 
-    // 4. Outil Texte
-    function startText() {
-        isTextActive = true;
-        map.getContainer().style.cursor = "crosshair";
+    // 5. Outil Texte
+    let textMode = false;
+    function activateText() {
+        textMode = true;
+        document.getElementById('status').innerText = "Cliquez sur la carte...";
     }
 
     map.on('click', function(e) {
-        if(!isTextActive) return;
-        const txt = prompt("Entrez votre texte :");
-        if(txt) {
-            const color = document.getElementById('favcolor').value;
-            const label = L.marker(e.latlng, {
+        if(!textMode) return;
+        const val = prompt("Texte :");
+        if(val) {
+            L.marker(e.latlng, {
                 icon: L.divIcon({
-                    className: 'my-label',
-                    html: `<b style="color:${color}; background:white; padding:2px; border:1px solid black;">${txt}</b>`,
+                    className: 'txt-lbl',
+                    html: `<b style="background:white; padding:3px; border:1px solid #000;">${val}</b>`,
                     iconSize: null
                 })
             }).addTo(drawnItems);
-            label.on('click', (ev) => {
-                L.DomEvent.stopPropagation(ev);
-                showDetails(txt, label);
-            });
         }
-        isTextActive = false;
-        map.getContainer().style.cursor = "";
+        textMode = false;
+        document.getElementById('status').innerText = "Carte prête";
     });
 
-    // 5. Recherche
-    async function searchAddr() {
-        const val = document.getElementById('addrInput').value;
-        const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(val)}&limit=1`);
-        const d = await r.json();
-        if(d.features.length > 0) {
-            const coords = d.features[0].geometry.coordinates;
-            const m = L.marker([coords[1], coords[0]]).addTo(drawnItems);
-            m.on('click', (ev) => {
-                L.DomEvent.stopPropagation(ev);
-                showDetails(val, m);
-            });
-            map.setView([coords[1], coords[0]], 15);
-        }
-    }
-
-    function showDetails(txt, lyr) {
-        selectedLyr = lyr;
-        document.getElementById('infoBox').style.display = 'block';
-        document.getElementById('infoContent').innerText = txt;
-    }
-
-    function removeLayer() {
-        if(selectedLyr) drawnItems.removeLayer(selectedLyr);
-        document.getElementById('infoBox').style.display = 'none';
-    }
 </script>
 </body>
 </html>
