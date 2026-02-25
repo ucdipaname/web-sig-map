@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Paris Geo Pro - Debug</title>
+    <title>Geo-Paris Debug Final</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
@@ -10,61 +10,57 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     
     <style>
-        body { margin: 0; padding: 0; display: flex; height: 100vh; font-family: sans-serif; overflow: hidden; }
+        /* On force le layout pour que rien ne se chevauche */
+        html, body { height: 100%; margin: 0; overflow: hidden; }
         
+        body { display: flex; font-family: sans-serif; }
+
         #sidebar { 
             width: 350px; 
             background: #1a1c23; 
             color: white; 
-            padding: 15px; 
-            overflow-y: auto; 
-            z-index: 10; /* Assure que la barre est au-dessus */
-            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            z-index: 100; /* Toujours devant */
+            display: flex;
+            flex-direction: column;
+            border-right: 2px solid #333;
         }
 
         #map { 
-            flex: 1; 
-            height: 100vh; 
-            z-index: 1; /* La carte est en dessous des menus */
+            flex: 1; /* Prend tout le reste de l'écran sans déborder */
+            height: 100vh;
+            z-index: 1; /* Toujours derrière le menu */
         }
 
-        .control-panel { background: #252836; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
-        .btn { width: 100%; padding: 8px; margin-top: 5px; cursor: pointer; border: none; border-radius: 4px; color: white; font-weight: bold; }
-        .search-input { width: 100%; padding: 8px; box-sizing: border-box; background: #1a1c23; color: white; border: 1px solid #444; border-radius: 4px; }
+        .panel { padding: 15px; border-bottom: 1px solid #333; }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; margin-bottom: 5px; color: white; }
+        .search-input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 5px; }
         
-        /* Style du texte sur la carte */
-        .text-label-on-map { background: white; padding: 2px 5px; border-radius: 3px; border: 1px solid #333; font-weight: bold; white-space: nowrap; }
+        /* Style des étiquettes texte sur la carte */
+        .map-text-label { background: white; border: 1px solid black; padding: 2px 5px; font-weight: bold; white-space: nowrap; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2 style="font-size: 1rem; color: #3498db;">PARIS GEO PRO</h2>
-    
-    <div class="control-panel">
-        <div id="temp-val" style="font-size: 1.2rem;">--°C</div>
-        <div id="poi-counter" style="font-size: 0.8rem; color: #95a5a6;">0 éléments</div>
+    <div class="panel">
+        <h2 style="color: #3498db; margin: 0;">Paris Geo Pro</h2>
+        <div id="poi-counter" style="color: #2ecc71; font-weight: bold; margin-top: 5px;">0 éléments</div>
     </div>
 
-    <div class="control-panel">
-        <input type="text" id="manual-search" class="search-input" placeholder="Adresse...">
-        <button class="btn" style="background: #3498db;" onclick="manualSearch()">Rechercher</button>
+    <div class="panel">
+        <input type="text" id="search-box" class="search-input" placeholder="Adresse...">
+        <button class="btn" style="background: #3498db;" onclick="doSearch()">Ajouter l'adresse</button>
     </div>
 
-    <div class="control-panel">
-        <label style="font-size: 0.7rem;">COULEUR ACTIVE</label>
-        <input type="color" id="active-color" value="#3498db" style="width: 100%; cursor: pointer;">
+    <div class="panel">
+        <label>Couleur active :</label>
+        <input type="color" id="active-color" value="#e74c3c" style="width: 100%; height: 30px;">
+        <button class="btn" style="background: #8e44ad; margin-top: 10px;" onclick="startText()">🔤 Outil Texte</button>
     </div>
 
-    <div class="control-panel">
-        <button class="btn" style="background: #8e44ad;" onclick="activateTextTool()">🔤 Outil Texte</button>
-        <button class="btn" style="background: #2c3e50;" onclick="exportToCSV()">📤 Export CSV</button>
-    </div>
-
-    <div id="fiche" class="control-panel" style="display:none; background: white; color: black;">
-        <h4 id="fiche-titre" style="margin:0"></h4>
-        <p id="fiche-addr" style="font-size: 0.8rem;"></p>
-        <button class="btn" style="background: #e74c3c;" onclick="deleteElement()">Supprimer</button>
+    <div class="panel" id="fiche" style="display:none; background: #fff; color: #000; border-radius: 5px;">
+        <p id="fiche-txt" style="margin: 5px 0;"></p>
+        <button class="btn" style="background: #e74c3c;" onclick="deleteSelected()">Supprimer</button>
     </div>
 </div>
 
@@ -75,114 +71,118 @@
 <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.js"></script>
 
 <script>
-    // Initialisation
+    // INITIALISATION DE LA CARTE
     const map = L.map('map').setView([48.8588, 2.347], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    const markersCluster = L.markerClusterGroup().addTo(map);
-    const drawnItems = new L.FeatureGroup().addTo(map);
-    let isTextToolActive = false;
-    let selectedLayer = null;
+    const clusterGroup = L.markerClusterGroup().addTo(map);
+    const drawnGroup = new L.FeatureGroup().addTo(map);
+    let selectedElement = null;
+    let textMode = false;
 
-    // --- OUTILS DE DESSIN ---
-    const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { polygon: true, polyline: true, rectangle: true, circle: true, marker: false }
+    // BOUTON GPS (Position)
+    const GPSControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function() {
+            const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            container.innerHTML = '<a style="background:white; cursor:pointer; font-size: 20px;">🎯</a>';
+            container.onclick = () => map.locate({setView: true, maxZoom: 16});
+            return container;
+        }
     });
+    map.addControl(new GPSControl());
+
+    // OUTILS DE DESSIN (Lignes, Surfaces)
+    const drawOptions = {
+        edit: { featureGroup: drawnGroup },
+        draw: { marker: false, circlemarker: false, circle: true, polygon: true, polyline: true, rectangle: true }
+    };
+    const drawControl = new L.Control.Draw(drawOptions);
     map.addControl(drawControl);
 
+    // QUAND UNE FORME EST CRÉÉE
     map.on(L.Draw.Event.CREATED, (e) => {
         const layer = e.layer;
         const color = document.getElementById('active-color').value;
         if (layer.setStyle) layer.setStyle({ color: color, fillColor: color });
-        drawnItems.addLayer(layer);
-        updateCounter();
+        
+        layer.on('click', (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            selectMe(layer, "Forme géométrique");
+        });
+        
+        drawnGroup.addLayer(layer);
+        updateCount();
     });
 
-    // --- GEOLOCALISATION ---
-    const LocateBtn = L.Control.extend({
-        options: { position: 'topleft' },
-        onAdd: function() {
-            const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-            btn.innerHTML = '<a style="background:white; cursor:pointer; display:block; width:30px; height:30px; line-height:30px; text-align:center;">🎯</a>';
-            btn.onclick = () => map.locate({setView: true, maxZoom: 16});
-            return btn;
-        }
-    });
-    map.addControl(new LocateBtn());
-
-    // --- OUTIL TEXTE ---
-    function activateTextTool() {
-        isTextToolActive = true;
+    // OUTIL TEXTE
+    function startText() {
+        textMode = true;
         map.getContainer().style.cursor = "crosshair";
     }
 
     map.on('click', (e) => {
-        if (!isTextToolActive) return;
-        const txt = prompt("Texte :");
-        const color = document.getElementById('active-color').value;
-        if (txt) {
-            const tm = L.marker(e.latlng, {
-                icon: L.divIcon({ className: 'text-label-on-map', html: `<span style="color:${color}">${txt}</span>` }),
-                isText: true, content: txt
-            }).addTo(drawnItems);
-            tm.on('click', (ev) => {
+        if (!textMode) return;
+        const val = prompt("Texte à afficher :");
+        const col = document.getElementById('active-color').value;
+        if (val) {
+            const label = L.marker(e.latlng, {
+                icon: L.divIcon({ 
+                    className: 'map-text-label', 
+                    html: `<span style="color:${col}">${val}</span>`,
+                    iconSize: null
+                })
+            }).addTo(drawnGroup);
+            
+            label.on('click', (ev) => {
                 L.DomEvent.stopPropagation(ev);
-                showFiche("Texte", txt, tm);
+                selectMe(label, val);
             });
         }
-        isTextToolActive = false;
+        textMode = false;
         map.getContainer().style.cursor = "";
-        updateCounter();
+        updateCount();
     });
 
-    // --- FONCTIONS GENERALES ---
-    function updateCounter() {
-        const total = markersCluster.getLayers().length + drawnItems.getLayers().length;
+    // RECHERCHE D'ADRESSE
+    async function doSearch() {
+        const query = document.getElementById('search-box').value;
+        if(!query) return;
+        try {
+            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=1`);
+            const d = await r.json();
+            if(d.features.length > 0) {
+                const lonlat = d.features[0].geometry.coordinates;
+                const marker = L.marker([lonlat[1], lonlat[0]]).addTo(clusterGroup);
+                marker.on('click', (ev) => {
+                    L.DomEvent.stopPropagation(ev);
+                    selectMe(marker, query);
+                });
+                map.setView([lonlat[1], lonlat[0]], 15);
+                updateCount();
+            }
+        } catch(e) { alert("Erreur de recherche"); }
+    }
+
+    // GESTION SÉLECTION / SUPPRESSION
+    function selectMe(layer, text) {
+        selectedElement = layer;
+        document.getElementById('fiche').style.display = 'block';
+        document.getElementById('fiche-txt').innerText = text;
+    }
+
+    function deleteSelected() {
+        if (!selectedElement) return;
+        if (drawnGroup.hasLayer(selectedElement)) drawnGroup.removeLayer(selectedElement);
+        else clusterGroup.removeLayer(selectedElement);
+        document.getElementById('fiche').style.display = 'none';
+        updateCount();
+    }
+
+    function updateCount() {
+        const total = clusterGroup.getLayers().length + drawnGroup.getLayers().length;
         document.getElementById('poi-counter').innerText = `${total} éléments`;
     }
-
-    function showFiche(titre, addr, layer) {
-        selectedLayer = layer;
-        document.getElementById('fiche').style.display = 'block';
-        document.getElementById('fiche-titre').innerText = titre;
-        document.getElementById('fiche-addr').innerText = addr;
-    }
-
-    function deleteElement() {
-        if (!selectedLayer) return;
-        if (drawnItems.hasLayer(selectedLayer)) drawnItems.removeLayer(selectedLayer);
-        else markersCluster.removeLayer(selectedLayer);
-        document.getElementById('fiche').style.display = 'none';
-        updateCounter();
-    }
-
-    async function manualSearch() {
-        const v = document.getElementById('manual-search').value;
-        const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(v)}&limit=1`);
-        const d = await r.json();
-        if(d.features.length > 0) {
-            const c = d.features[0].geometry.coordinates;
-            const m = L.marker([c[1], c[0]]).addTo(markersCluster);
-            m.on('click', () => showFiche(v, d.features[0].properties.label, m));
-            map.setView([c[1], c[0]], 15);
-            updateCounter();
-        }
-    }
-
-    function exportToCSV() {
-        let csv = "Nom;Coordonnées\n";
-        markersCluster.eachLayer(l => { csv += `Point;${l.getLatLng().lat},${l.getLatLng().lng}\n`; });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        a.download = "export_paris.csv"; a.click();
-    }
-
-    // Météo simplifiée
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=48.85&longitude=2.34&current_weather=true')
-        .then(r => r.json()).then(d => {
-            document.getElementById('temp-val').innerText = `${Math.round(d.current_weather.temperature)}°C`;
-        });
 
 </script>
 </body>
