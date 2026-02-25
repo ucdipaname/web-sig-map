@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Paris Geo-Tourisme Pro - Géocodage Intégré</title>
+    <title>Paris Geo-Tourisme Pro - Smart Transit</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
@@ -16,12 +15,12 @@
             --panel-header: #252836;
             --accent-color: #3498db;
             --route-color: #2ecc71;
-            --delete-color: #e74c3c;
+            --poi-color: #f1c40f;
             --text-main: #ecf0f1;
         }
 
         body { margin: 0; display: flex; font-family: 'Inter', sans-serif; background: var(--sidebar-bg); overflow: hidden; }
-        #sidebar { width: 350px; height: 100vh; background: var(--sidebar-bg); color: var(--text-main); padding: 20px; box-sizing: border-box; overflow-y: auto; z-index: 2000; border-right: 1px solid #333; }
+        #sidebar { width: 360px; height: 100vh; background: var(--sidebar-bg); color: var(--text-main); padding: 20px; box-sizing: border-box; overflow-y: auto; z-index: 2000; border-right: 1px solid #333; }
         #map { flex-grow: 1; height: 100vh; }
 
         .control-panel { background: var(--panel-header); padding: 15px; border-radius: 12px; margin-bottom: 20px; }
@@ -29,26 +28,31 @@
         .icon-item { background: #34495e; padding: 10px; border-radius: 8px; text-align: center; cursor: grab; font-size: 1.5rem; transition: 0.2s; }
         .icon-item:hover { background: var(--accent-color); transform: scale(1.1); }
 
-        .btn { width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; }
+        .btn { width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-poi { background: var(--poi-color); color: #2c3e50; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .btn-route { background: var(--route-color); color: white; }
-        .btn-delete { background: var(--delete-color); color: white; }
+        .btn-delete { background: #e74c3c; color: white; }
         
         .fiche-detail { background: white; color: #1a1c23; padding: 20px; border-radius: 12px; margin-top: 20px; display: none; }
-        .addr-badge { font-size: 0.75rem; color: #7f8c8d; background: #f1f2f6; padding: 4px 8px; border-radius: 4px; display: block; margin-top: 5px; }
-        .map-label { background: rgba(255, 255, 255, 0.9); border: 1px solid #333; padding: 2px 5px; border-radius: 4px; font-weight: bold; }
+        .addr-badge { font-size: 0.75rem; color: #7f8c8d; background: #f1f2f6; padding: 4px 8px; border-radius: 4px; display: block; margin: 5px 0; }
+        
+        .poi-info { margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 8px; font-size: 0.85rem; border: 1px dashed var(--poi-color); }
+        
+        /* Masquer le texte de Leaflet Routing Machine */
+        .leaflet-routing-container { display: none; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
     <div class="control-panel">
-        <h3 style="margin:0; font-size: 1rem;">🛰️ GÉOCODAGE ACTIF</h3>
-        <p style="font-size: 0.8rem; color: #bdc3c7;">Les adresses sont détectées automatiquement lors du dépôt d'icônes.</p>
+        <h3 style="margin:0; font-size: 1rem;">🛰️ SMART TRANSIT</h3>
+        <p style="font-size: 0.8rem; color: #bdc3c7;">Calculez le chemin piéton vers le transport le plus proche.</p>
     </div>
 
     <div id="route-info" class="control-panel" style="display:none; border-left: 4px solid var(--route-color);">
-        <div id="stat-distance">-- km</div>
-        <div id="stat-time">-- min</div>
+        <div id="stat-distance" style="font-weight: bold;">-- km</div>
+        <div id="stat-time" style="font-size: 0.9rem;">-- min</div>
     </div>
 
     <h3 style="font-size: 1rem;">📍 ÉLÉMENTS RAPIDES</h3>
@@ -61,17 +65,25 @@
         </div>
     </div>
 
-    <button class="btn" style="background: var(--accent-color); color:white" onclick="exportData()">💾 Exporter GeoJSON</button>
-    <button class="btn" style="background: transparent; color: #e74c3c; border: 1px solid #e74c3c" onclick="confirmReset()">⚠️ Vider la carte</button>
+    <button class="btn" style="background: var(--accent-color); color:white" onclick="exportData()">💾 Exporter Projet</button>
+    <button class="btn" style="background: transparent; color: #e74c3c; border: 1px solid #e74c3c" onclick="confirmReset()">⚠️ Reset Carte</button>
 
     <div id="fiche" class="fiche-detail">
         <h3 id="fiche-titre" style="margin:0">Détails</h3>
-        <div id="fiche-addr" class="addr-badge">Recherche d'adresse...</div>
-        <p id="fiche-desc" style="margin-top:10px; font-size:0.9rem;"></p>
-        <div id="measure-result"></div>
-        <div id="route-actions" style="display: flex; gap: 5px; margin-top: 10px;">
-            <button class="btn btn-route" style="margin:0" onclick="setRoutePoint('start')">Départ</button>
-            <button class="btn btn-route" style="margin:0; background:#27ae60" onclick="setRoutePoint('end')">Arrivée</button>
+        <div id="fiche-addr" class="addr-badge">Adresse...</div>
+        
+        <label style="font-size: 0.7rem; font-weight: bold; color: #95a5a6; margin-top: 10px; display: block;">REJOINDRE LE PLUS PROCHE :</label>
+        <div style="display: flex; gap: 5px;">
+            <button class="btn btn-poi" onclick="smartNavigate('subway')">🚇 Métro</button>
+            <button class="btn btn-poi" onclick="smartNavigate('bicycle_parking')">🚲 Vélib</button>
+        </div>
+
+        <div id="poi-status" class="poi-info" style="display:none;"></div>
+
+        <div id="route-actions" style="display: flex; gap: 5px; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+            <button class="btn btn-route" style="margin:0; font-size: 0.7rem;" onclick="setRoutePoint('start')">🚩 Dép.</button>
+            <button class="btn btn-route" style="margin:0; font-size: 0.7rem; background:#27ae60" onclick="setRoutePoint('end')">🏁 Arr.</button>
+            <button class="btn" style="margin:0; font-size: 0.7rem; background:#7f8c8d; color:white" onclick="clearNavigation()">🧹 Effacer</button>
         </div>
         <button class="btn btn-delete" onclick="deleteElement()">🗑️ Supprimer</button>
     </div>
@@ -89,154 +101,122 @@
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM' }).addTo(map);
 
     const drawnItems = new L.FeatureGroup().addTo(map);
+    const poiMarkers = new L.LayerGroup().addTo(map);
     let selectedLayer = null;
     let routingControl = null;
     let routePoints = { start: null, end: null };
 
-    // --- RECHERCHE MANUELLE ---
-    L.Control.geocoder({ defaultMarkGeocode: true, placeholder: "Chercher une rue..." }).addTo(map);
-
-    const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { marker: false, circlemarker: false, circle: false }
-    });
+    // --- GEOLOC ET DESSIN ---
+    L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
+    const drawControl = new L.Control.Draw({ edit: { featureGroup: drawnItems }, draw: { marker: false, circle: false, circlemarker: false } });
     map.addControl(drawControl);
 
-    // --- FONCTION DE GÉOCODAGE INVERSE (COORD -> ADRESSE) ---
-    async function getAddress(lat, lng) {
+    // --- NAVIGATION INTELLIGENTE (POI + ROUTE) ---
+    async function smartNavigate(type) {
+        if (!selectedLayer) return;
+        const origin = selectedLayer.getLatLng();
+        const statusDiv = document.getElementById('poi-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = "🔍 Recherche de la station...";
+        poiMarkers.clearLayers();
+
+        let query = `[out:json];node["station"="${type}"](around:800,${origin.lat},${origin.lng});out;`;
+        if (type === 'bicycle_parking') query = `[out:json];node["amenity"="bicycle_parking"](around:800,${origin.lat},${origin.lng});out;`;
+
         try {
-            const response = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`);
-            const data = await response.json();
-            return data.features.length > 0 ? data.features[0].properties.label : "Adresse inconnue";
-        } catch (err) {
-            return "Erreur de géocodage";
-        }
-    }
-
-    // --- DESSIN MANUEL ---
-    map.on(L.Draw.Event.CREATED, function (e) {
-        const layer = e.layer;
-        const title = prompt("Nom de l'élément :", "Nouveau tracé");
-        layer.options.title = title;
-        layer.options.address = "Élément géométrique";
-        
-        layer.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            selectedLayer = layer;
-            showFiche(title, "Tracé manuel", layer.options.address);
-        });
-        drawnItems.addLayer(layer);
-        saveToLocalStorage();
-    });
-
-    // --- DRAG & DROP AVEC GÉOCODAGE ---
-    let draggedData = null;
-    document.querySelectorAll('.icon-item').forEach(item => {
-        item.addEventListener('dragstart', (e) => {
-            draggedData = { icon: e.target.getAttribute('data-icon'), type: e.target.getAttribute('data-type') };
-        });
-    });
-
-    const mapDiv = document.getElementById('map');
-    mapDiv.addEventListener('dragover', (e) => e.preventDefault());
-    mapDiv.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        const rect = mapDiv.getBoundingClientRect();
-        const latlng = map.containerPointToLatLng([e.clientX - rect.left, e.clientY - rect.top]);
-        
-        if (draggedData.type === 'text') {
-            const txt = prompt("Texte de l'étiquette :");
-            if (txt) createTextLabel(latlng, txt);
-        } else {
-            const title = prompt("Nom du lieu ?", "Étape");
-            if (title) {
-                // Appel au géocodage inverse
-                const address = await getAddress(latlng.lat, latlng.lng);
-                createMarker(latlng, draggedData.icon, title, address);
+            const resp = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+            const data = await resp.json();
+            
+            if (data.elements.length === 0) {
+                statusDiv.innerHTML = "❌ Aucune station à moins de 800m.";
+                return;
             }
-        }
-    });
 
-    function createMarker(latlng, icon, title, address) {
-        const customIcon = L.divIcon({
-            html: `<div style="font-size: 24px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4))">${icon}</div>`,
-            className: 'custom-div-icon', iconSize: [30, 30], iconAnchor: [15, 15]
-        });
-        const marker = L.marker(latlng, { icon: customIcon }).addTo(drawnItems);
-        marker.options.title = title;
-        marker.options.address = address;
+            // Trouver la plus proche mathématiquement
+            const closest = data.elements.reduce((prev, curr) => {
+                const prevDist = origin.distanceTo([prev.lat, prev.lon]);
+                const currDist = origin.distanceTo([curr.lat, curr.lon]);
+                return (currDist < prevDist) ? curr : prev;
+            });
 
-        marker.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            selectedLayer = marker;
-            showFiche(title, "Marker", address);
-        });
-        saveToLocalStorage();
+            const targetLatLng = L.latLng(closest.lat, closest.lon);
+            const name = closest.tags.name || (type === 'subway' ? "Métro" : "Point Vélib");
+
+            statusDiv.innerHTML = `✅ <strong>${name}</strong> trouvé !<br>Tracé de l'itinéraire piéton...`;
+
+            // Marquer la cible
+            L.circleMarker(targetLatLng, { radius: 8, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1 }).addTo(poiMarkers).bindPopup(name);
+
+            // Lancer le routage automatique
+            calculateAutoRoute(origin, targetLatLng);
+
+        } catch (err) { statusDiv.innerHTML = "❌ Erreur réseau."; }
     }
 
-    function createTextLabel(latlng, text) {
-        const label = L.marker(latlng, {
-            icon: L.divIcon({ className: 'map-label', html: text, iconSize: [100, 20] })
-        }).addTo(drawnItems);
-        label.options.title = text;
-        label.options.address = "Annotation";
-        label.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            selectedLayer = label;
-            showFiche("Texte", text, "Annotation libre");
-        });
-        saveToLocalStorage();
-    }
-
-    // --- ITINÉRAIRE ---
-    function setRoutePoint(type) {
-        if (!selectedLayer || !selectedLayer.getLatLng) return;
-        routePoints[type] = selectedLayer.getLatLng();
-        if (routePoints.start && routePoints.end) calculateRoute();
-    }
-
-    function calculateRoute() {
+    function calculateAutoRoute(start, end) {
         if (routingControl) map.removeControl(routingControl);
+        
         routingControl = L.Routing.control({
-            waypoints: [ routePoints.start, routePoints.end ],
-            lineOptions: { styles: [{ color: '#2ecc71', weight: 5 }] },
+            waypoints: [start, end],
+            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' }), // Profil PIÉTON
+            lineOptions: { styles: [{ color: '#f1c40f', weight: 4, dashArray: '5, 10' }] },
             createMarker: () => null
         }).addTo(map);
-        
+
         routingControl.on('routesfound', (e) => {
             const s = e.routes[0].summary;
-            document.getElementById('route-info').style.display = 'block';
-            document.getElementById('stat-distance').innerText = `📏 ${(s.totalDistance/1000).toFixed(1)} km`;
-            document.getElementById('stat-time').innerText = `⏱️ ${Math.round(s.totalTime/60)} min`;
+            document.getElementById('poi-status').innerHTML += `<br>🚶 <strong>${(s.totalDistance).toFixed(0)}m</strong> - Env. <strong>${Math.round(s.totalTime/60)} min</strong> à pied.`;
         });
     }
 
-    // --- UI ---
-    function showFiche(titre, desc, address) {
-        const f = document.getElementById('fiche');
-        f.style.display = 'block';
-        document.getElementById('fiche-titre').innerText = titre;
-        document.getElementById('fiche-desc').innerText = desc;
-        document.getElementById('fiche-addr').innerText = address || "Calcul de l'adresse...";
-        
-        document.getElementById('route-actions').style.display = (selectedLayer && selectedLayer.getLatLng) ? 'flex' : 'none';
+    function clearNavigation() {
+        if (routingControl) map.removeControl(routingControl);
+        poiMarkers.clearLayers();
+        document.getElementById('poi-status').style.display = 'none';
+        document.getElementById('route-info').style.display = 'none';
+        routePoints = { start: null, end: null };
     }
 
-    function deleteElement() {
-        if(selectedLayer) {
-            drawnItems.removeLayer(selectedLayer);
-            document.getElementById('fiche').style.display = 'none';
-            saveToLocalStorage();
+    // --- GESTION DES MARQUEURS ---
+    async function getAddress(lat, lng) {
+        const r = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`);
+        const d = await r.json();
+        return d.features.length > 0 ? d.features[0].properties.label : "Inconnu";
+    }
+
+    let draggedData = null;
+    document.querySelectorAll('.icon-item').forEach(i => i.addEventListener('dragstart', (e) => draggedData = { icon: e.target.getAttribute('data-icon') }));
+    
+    document.getElementById('map').addEventListener('dragover', (e) => e.preventDefault());
+    document.getElementById('map').addEventListener('drop', async (e) => {
+        const latlng = map.containerPointToLatLng([e.clientX - 360, e.clientY]);
+        const title = prompt("Nom ?");
+        if (title) {
+            const addr = await getAddress(latlng.lat, latlng.lng);
+            const m = L.marker(latlng, { icon: L.divIcon({ html: draggedData.icon, className: 'custom-icon', iconSize:[30,30] }) }).addTo(drawnItems);
+            m.options.title = title; m.options.address = addr;
+            m.on('click', () => { selectedLayer = m; showFiche(title, addr); });
+        }
+    });
+
+    function showFiche(t, a) {
+        selectedLayer.getLatLng ? document.getElementById('fiche').style.display = 'block' : null;
+        document.getElementById('fiche-titre').innerText = t;
+        document.getElementById('fiche-addr').innerText = a;
+        document.getElementById('poi-status').style.display = 'none';
+    }
+
+    function setRoutePoint(type) {
+        routePoints[type] = selectedLayer.getLatLng();
+        if (routePoints.start && routePoints.end) {
+            if (routingControl) map.removeControl(routingControl);
+            routingControl = L.Routing.control({ waypoints: [routePoints.start, routePoints.end] }).addTo(map);
         }
     }
 
-    function saveToLocalStorage() { localStorage.setItem('parisGeoV7', JSON.stringify(drawnItems.toGeoJSON())); }
-    function exportData() {
-        const blob = new Blob([JSON.stringify(drawnItems.toGeoJSON())], {type: 'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export.geojson'; a.click();
-    }
-    function confirmReset() { if(confirm("Effacer tout ?")) { drawnItems.clearLayers(); localStorage.removeItem('parisGeoV7'); } }
-
+    function deleteElement() { drawnItems.removeLayer(selectedLayer); document.getElementById('fiche').style.display = 'none'; }
+    function confirmReset() { if(confirm("Vider ?")) { drawnItems.clearLayers(); clearNavigation(); } }
 </script>
 </body>
 </html>
+
