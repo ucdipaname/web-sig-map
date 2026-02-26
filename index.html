@@ -2,138 +2,216 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Paris Geo Pro - Force Click Fix</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Géo-Outil Pro : Suite Complète</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     
     <style>
-        /* Reset total pour éviter les overlays fantômes */
-        html, body { 
-            height: 100%; 
-            margin: 0; 
-            padding: 0; 
-            display: flex; 
-            overflow: hidden; 
-            background: #000; 
+        :root {
+            --sidebar-width: 280px;
+            --topbar-height: 60px;
+            --dark-blue: #1a2a3a;
+            --accent-blue: #3498db;
+            --success-green: #27ae60;
+            --danger-red: #e74c3c;
         }
 
-        #sidebar { 
-            width: 300px; 
-            height: 100vh;
-            background: #1a1c23; 
-            color: white; 
-            z-index: 9999; /* Priorité maximale pour le menu */
-            position: relative;
-            flex-shrink: 0;
-            padding: 15px;
-            box-sizing: border-box;
-        }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-        #map-container {
-            flex-grow: 1;
-            position: relative;
-            height: 100vh;
-            z-index: 1;
-        }
+        /* Barre de Recherche */
+        #top-bar { height: var(--topbar-height); background: var(--dark-blue); display: flex; align-items: center; justify-content: center; z-index: 1001; }
+        .search-box { position: relative; width: 50%; max-width: 500px; }
+        #search-input { width: 100%; padding: 10px 40px 10px 15px; border-radius: 25px; border: none; outline: none; }
+        .search-box i { position: absolute; right: 15px; top: 12px; color: #7f8c8d; }
 
-        #map { 
-            width: 100%;
-            height: 100%;
-            /* Force la réception des clics */
-            pointer-events: auto !important; 
-            z-index: 5;
-        }
+        /* Layout */
+        #container { display: flex; flex: 1; }
+        #sidebar { width: var(--sidebar-width); background: #f8f9fa; border-right: 1px solid #ddd; padding: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eee; }
+        .card h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--dark-blue); display: flex; align-items: center; gap: 8px; }
 
-        /* Correction spécifique pour les bugs de calques Chrome */
-        .leaflet-pane { z-index: 400 !important; }
-        .leaflet-top, .leaflet-bottom { z-index: 1000 !important; }
+        #map { flex: 1; }
 
-        .btn { 
-            width: 100%; 
-            padding: 10px; 
-            margin-bottom: 10px; 
-            cursor: pointer; 
-            background: #3498db; 
-            color: white; 
-            border: none; 
-            border-radius: 4px; 
-        }
+        /* Boutons */
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; transition: 0.2s; }
+        .btn-export { background: var(--success-green); }
+        .btn-import { background: var(--accent-blue); }
+        .btn-clear { background: var(--danger-red); margin-top: 5px; }
+        .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+
+        #file-input { display: none; }
+        #weather-info { text-align: center; }
+        .temp { font-size: 22px; font-weight: bold; color: var(--accent-blue); }
     </style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h2 style="font-size: 1.2rem;">Paris Geo Pro</h2>
-    <button class="btn" onclick="map.locate({setView: true, maxZoom: 16})">🎯 Ma Position</button>
-    <button class="btn" style="background:#8e44ad" onclick="activateText()">🔤 Outil Texte</button>
-    <div id="status" style="font-size: 0.8rem; color: #2ecc71;">Carte prête</div>
-</div>
+    <header id="top-bar">
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Rechercher une rue ou une ville...">
+            <i class="fa-solid fa-magnifying-glass"></i>
+        </div>
+    </header>
 
-<div id="map-container">
-    <div id="map"></div>
-</div>
+    <div id="container">
+        <aside id="sidebar">
+            <div class="card">
+                <h3><i class="fa-solid fa-cloud-sun"></i> Météo Locale</h3>
+                <div id="weather-info"><p>Déplacez la carte...</p></div>
+            </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+            <div class="card">
+                <h3><i class="fa-solid fa-file-export"></i> Sauvegarde</h3>
+                <button class="btn btn-export" onclick="exportData()">
+                    <i class="fa-solid fa-download"></i> Exporter GeoJSON
+                </button>
+                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">
+                    <i class="fa-solid fa-upload"></i> Importer GeoJSON
+                </button>
+                <input type="file" id="file-input" accept=".geojson, .json">
+            </div>
 
-<script>
-    // 1. Initialisation avec focus forcé
-    const map = L.map('map', {
-        tap: false, // Désactive la gestion spécifique au tactile qui peut bugger sur Chrome desktop
-        zoomControl: true
-    }).setView([48.8588, 2.347], 13);
+            <div class="card">
+                <h3><i class="fa-solid fa-eraser"></i> Actions</h3>
+                <button class="btn btn-clear" onclick="clearAll()">
+                    <i class="fa-solid fa-trash-can"></i> Effacer tout
+                </button>
+            </div>
+        </aside>
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        <main id="map"></main>
+    </div>
 
-    const drawnItems = new L.FeatureGroup().addTo(map);
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
-    // 2. Ajout des outils de dessin
-    const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { marker: true, polyline: true, polygon: true, rectangle: true, circle: true }
-    });
-    map.addControl(drawControl);
+    <script>
+        // --- CONFIGURATION ---
+        const API_KEY = 'VOTRE_CLE_API_ICI'; 
 
-    // 3. Force le Focus au démarrage
-    window.onload = function() {
-        setTimeout(() => {
-            map.invalidateSize(); // Recalcule la taille de la carte
-            document.getElementById('map').focus();
-            console.log("Focus carte forcé");
-        }, 500);
-    };
+        // --- INITIALISATION CARTE ---
+        const map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 6);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-    // 4. Gestion du dessin
-    map.on(L.Draw.Event.CREATED, function (e) {
-        drawnItems.addLayer(e.layer);
-        document.getElementById('status').innerText = "Élément ajouté";
-    });
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
 
-    // 5. Outil Texte
-    let textMode = false;
-    function activateText() {
-        textMode = true;
-        document.getElementById('status').innerText = "Cliquez sur la carte...";
-    }
+        const drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: { circlemarker: false, circle: false },
+            edit: { featureGroup: drawnItems }
+        });
+        map.addControl(drawControl);
 
-    map.on('click', function(e) {
-        if(!textMode) return;
-        const val = prompt("Texte :");
-        if(val) {
-            L.marker(e.latlng, {
-                icon: L.divIcon({
-                    className: 'txt-lbl',
-                    html: `<b style="background:white; padding:3px; border:1px solid #000;">${val}</b>`,
-                    iconSize: null
-                })
-            }).addTo(drawnItems);
+        // --- GESTION DES DESSINS ---
+        map.on(L.Draw.Event.CREATED, (e) => {
+            const layer = e.layer;
+            if (e.layerType === 'marker') {
+                const text = prompt("Annotation textuelle :");
+                if (text) {
+                    layer.bindPopup(text).openPopup();
+                    layer.options.description = text; 
+                }
+            }
+            drawnItems.addLayer(layer);
+        });
+
+        // --- FONCTIONS ACTIONS ---
+        function clearAll() {
+            if (drawnItems.getLayers().length === 0) {
+                alert("La carte est déjà vide.");
+                return;
+            }
+            if (confirm("Êtes-vous sûr de vouloir supprimer TOUS vos tracés ? Cette action est irréversible.")) {
+                drawnItems.clearLayers();
+            }
         }
-        textMode = false;
-        document.getElementById('status').innerText = "Carte prête";
-    });
 
-</script>
+        function exportData() {
+            if (drawnItems.getLayers().length === 0) {
+                alert("Rien à exporter ! Dessinez d'abord quelque chose.");
+                return;
+            }
+            const data = drawnItems.toGeoJSON();
+            drawnItems.eachLayer(layer => {
+                const json = layer.toGeoJSON();
+                if (layer.options && layer.options.description) {
+                    data.features.forEach(f => {
+                        if (JSON.stringify(f.geometry) === JSON.stringify(json.geometry)) {
+                            f.properties.description = layer.options.description;
+                        }
+                    });
+                }
+            });
+            const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'export_carte.geojson';
+            link.click();
+        }
+
+        document.getElementById('file-input').onchange = function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const geojson = JSON.parse(event.target.result);
+                    L.geoJSON(geojson, {
+                        onEachFeature: function (feature, layer) {
+                            if (feature.properties && feature.properties.description) {
+                                layer.bindPopup(feature.properties.description);
+                                layer.options.description = feature.properties.description;
+                            }
+                            drawnItems.addLayer(layer);
+                        }
+                    });
+                    map.fitBounds(drawnItems.getBounds());
+                } catch(err) {
+                    alert("Erreur lors de la lecture du fichier GeoJSON.");
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        // --- SERVICES (Météo & Recherche) ---
+        function fetchWeather() {
+            const center = map.getCenter();
+            if (API_KEY === 'VOTRE_CLE_API_ICI') return;
+            fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${center.lat}&lon=${center.lng}&units=metric&lang=fr&appid=${API_KEY}`)
+            .then(r => r.json()).then(data => {
+                document.getElementById('weather-info').innerHTML = `
+                    <div class="temp">${Math.round(data.main.temp)}°C</div>
+                    <div style="text-transform:capitalize; font-size: 14px;">${data.weather[0].description}</div>
+                `;
+            }).catch(() => {});
+        }
+
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(e.target.value)}`)
+                .then(r => r.json()).then(data => { 
+                    if(data[0]) {
+                        map.setView([data[0].lat, data[0].lon], 15);
+                        L.marker([data[0].lat, data[0].lon]).addTo(map).bindPopup(e.target.value).openPopup();
+                    } else {
+                        alert("Lieu non trouvé.");
+                    }
+                });
+            }
+        });
+
+        map.on('moveend', fetchWeather);
+        fetchWeather();
+    </script>
 </body>
 </html>
+
 
