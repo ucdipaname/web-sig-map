@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Expert Intégral</title>
+    <title>Géo-Outil Master Pro</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -17,7 +17,7 @@
         
         #top-bar { height: 60px; background: var(--dark-blue); display: flex; align-items: center; justify-content: center; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
         .search-box { width: 50%; display: flex; }
-        #search-input { flex: 1; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; }
+        #search-input { flex: 1; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
         
         #container { display: flex; flex: 1; overflow: hidden; position: relative; }
         #sidebar { width: var(--sidebar-width); background: white; border-right: 1px solid #dcdde1; padding: 20px; z-index: 1500; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
@@ -27,7 +27,8 @@
         .card h3 { margin: 0 0 12px 0; font-size: 13px; color: #485e74; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
         
         .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 8px; color: white; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; margin-bottom: 8px; }
-        .btn:hover { filter: brightness(1.1); }
+        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
         
         .btn-csv { background: #8257e5; }
         .btn-export { background: var(--success); }
@@ -38,44 +39,52 @@
         #prog-container { display: none; background: #dcdde1; border-radius: 10px; height: 12px; overflow: hidden; margin-top: 10px; }
         #prog-bar { background: var(--success); height: 100%; width: 0%; transition: width 0.2s; }
         
-        /* Ajustement Menu Couches */
-        .leaflet-control-layers { border-radius: 8px !important; box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important; padding: 10px !important; }
+        /* Drop zone effect */
+        #map.dragover { border: 4px dashed var(--accent); opacity: 0.8; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-box">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse ou une ville...">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse (Entrée pour valider)...">
         </div>
     </header>
 
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-location-arrow"></i> Navigation</h3>
-                <button class="btn btn-loc" onclick="locateMe()"><i class="fa-solid fa-street-view"></i> Ma Position</button>
-                <div id="pos-info" style="font-size: 11px; color: #7f8c8d; text-align: center;">Lat: -- | Lon: --</div>
+                <h3><i class="fa-solid fa-location-arrow"></i> Ma Position</h3>
+                <button class="btn btn-loc" onclick="locateMe()"><i class="fa-solid fa-street-view"></i> Me localiser</button>
+                <div id="pos-info" style="font-size: 11px; color: #7f8c8d; text-align: center;">Lat/Lon en attente...</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-file-csv"></i> Import Massif</h3>
+                <h3><i class="fa-solid fa-file-csv"></i> Import CSV</h3>
                 <button class="btn btn-csv" onclick="document.getElementById('csv-input').click()">
-                    <i class="fa-solid fa-upload"></i> Charger un CSV
+                    <i class="fa-solid fa-upload"></i> Charger adresses
                 </button>
                 <input type="file" id="csv-input" style="display:none" accept=".csv">
                 <div id="prog-container"><div id="prog-bar"></div></div>
-                <div id="log-status" style="font-size: 11px; margin-top:5px; color:#636e72">Prêt (colonne "adresse" requise)</div>
+                <div id="log-status" style="font-size: 11px; margin-top:5px; color:#636e72">Format: Colonne "adresse"</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-box-archive"></i> Données GeoJSON</h3>
-                <button class="btn btn-export" onclick="exportData()"><i class="fa-solid fa-download"></i> Exporter Projet</button>
-                <button class="btn btn-import" onclick="document.getElementById('file-input').click()"><i class="fa-solid fa-folder-open"></i> Importer Projet</button>
-                <input type="file" id="file-input" style="display:none" accept=".geojson">
-                <button class="btn btn-clear" onclick="clearAllData()"><i class="fa-solid fa-trash-can"></i> Réinitialiser</button>
+                <h3><i class="fa-solid fa-draw-polygon"></i> Projets GeoJSON</h3>
+                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">
+                    <i class="fa-solid fa-folder-open"></i> Importer un fichier
+                </button>
+                <input type="file" id="file-input" style="display:none" accept=".geojson,.json">
+                
+                <button class="btn btn-export" onclick="exportData()">
+                    <i class="fa-solid fa-download"></i> Exporter tout
+                </button>
+                
+                <button class="btn btn-clear" onclick="clearAllData()">
+                    <i class="fa-solid fa-trash-can"></i> Réinitialiser carte
+                </button>
             </div>
-            <div style="font-size: 10px; color: #b2bec3; text-align: center;">Sauvegarde locale active</div>
+            <div style="font-size: 10px; color: #b2bec3; text-align: center;">Sauvegarde auto. navigateur</div>
         </aside>
 
         <main id="map"></main>
@@ -86,78 +95,47 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
     <script>
-        // 1. FONDS DE CARTE
+        // --- INITIALISATION ---
         const baseLayers = {
-            "Épuré": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '©CARTO' }),
-            "Standard": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '©OSM' }),
+            "Plan": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '©CARTO' }),
+            "OSM": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '©OSM' }),
             "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '©Esri' })
         };
 
         const map = L.map('map', { 
             center: [46.6, 2.2], 
             zoom: 6, 
-            layers: [baseLayers.Épuré],
+            layers: [baseLayers.Plan],
             zoomControl: false 
         });
 
-        // 2. GROUPES DE DONNÉES (Overlays)
-        const drawnItems = new L.FeatureGroup(); // Dessins
-        const markerCluster = L.markerClusterGroup(); // Points (CSV/Import)
+        // Groupes
+        const drawnItems = new L.FeatureGroup(); 
+        const markerCluster = L.markerClusterGroup(); 
         map.addLayer(drawnItems);
         map.addLayer(markerCluster);
 
-        // 3. MENU DES COUCHES (Base + Overlays)
+        // Menu Couches (Overlays intégrés)
         const overlays = {
-            "<i class='fa-solid fa-pen-nib'></i> Mes Tracés": drawnItems,
-            "<i class='fa-solid fa-location-dot'></i> Points (Clusters)": markerCluster
+            "<i class='fa-solid fa-pencil'></i> Mes Tracés": drawnItems,
+            "<i class='fa-solid fa-layer-group'></i> Clusters": markerCluster
         };
         L.control.layers(baseLayers, overlays, { collapsed: false, position: 'topright' }).addTo(map);
-
-        // Autres contrôles
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.control.scale({ imperial: false }).addTo(map);
 
-        // 4. SAUVEGARDE LOCALE
-        function saveToLocal() {
-            const data = {
-                drawn: drawnItems.toGeoJSON(),
-                clustered: markerCluster.toGeoJSON()
-            };
-            localStorage.setItem('mapMasterData', JSON.stringify(data));
-        }
+        // --- FONCTIONS CORE ---
 
-        function loadFromLocal() {
-            const saved = localStorage.getItem('mapMasterData');
-            if (!saved) return;
-            try {
-                const data = JSON.parse(saved);
-                if(data.drawn) importGeoJSONToLayer(data.drawn, drawnItems);
-                if(data.clustered) importGeoJSONToLayer(data.clustered, markerCluster);
-            } catch(e) { console.error("Erreur de chargement", e); }
-        }
-
-        function importGeoJSONToLayer(geojson, layerGroup) {
-            L.geoJSON(geojson, {
-                onEachFeature: (f, l) => {
-                    const desc = (f.properties && f.properties.description) ? f.properties.description : "Sans titre";
-                    l.bindPopup(createPopupContent(desc, l));
-                    l.options.description = desc;
-                    layerGroup.addLayer(l);
-                }
-            });
-        }
-
-        // 5. POPUPS ÉDITABLES
         function createPopupContent(text, layer) {
             const container = document.createElement('div');
-            container.innerHTML = `<div style="margin-bottom:8px"><strong>Note :</strong><br>${text}</div>
-                <button onclick="editPopup(this)" style="font-size:10px; cursor:pointer; padding:2px 5px;">Modifier</button>`;
+            container.innerHTML = `<div style="min-width:140px"><strong>Info :</strong><br>${text}</div>
+                <hr><button onclick="editPopup(this)" style="width:100%; cursor:pointer; font-size:10px;">Modifier</button>`;
             container.layer = layer;
             return container;
         }
 
         window.editPopup = function(btn) {
-            const newText = prompt("Nouveau texte :");
+            const newText = prompt("Modifier la description :", "");
             if (newText) {
                 const layer = btn.parentElement.layer;
                 layer.options.description = newText;
@@ -166,34 +144,65 @@
             }
         };
 
-        // 6. DESSIN ET ÉDITION
-        const drawControl = new L.Control.Draw({
-            position: 'topright',
-            draw: { circle: false, circlemarker: false, 
-                   polyline: { shapeOptions: { color: '#0fbcf9', weight: 4 } },
-                   polygon: { shapeOptions: { color: '#05c46b' } } 
-            },
-            edit: { featureGroup: drawnItems }
-        });
-        map.addControl(drawControl);
-
-        map.on(L.Draw.Event.CREATED, (e) => {
-            const l = e.layer;
-            const content = (e.layerType === 'marker') ? (prompt("Titre du point :") || "Point manuel") : "Tracé manuel";
-            l.bindPopup(createPopupContent(content, l)).options.description = content;
-            
-            if (e.layerType === 'marker') markerCluster.addLayer(l);
-            else drawnItems.addLayer(l);
+        // --- IMPORT GEOJSON ---
+        function handleGeoJSON(geojson) {
+            L.geoJSON(geojson, {
+                onEachFeature: (f, l) => {
+                    const desc = f.properties?.description || f.properties?.name || "Objet importé";
+                    l.bindPopup(createPopupContent(desc, l)).options.description = desc;
+                    
+                    if (f.geometry.type === "Point") markerCluster.addLayer(l);
+                    else drawnItems.addLayer(l);
+                }
+            });
             saveToLocal();
-        });
+            const bounds = L.featureGroup([drawnItems, markerCluster]).getBounds();
+            if (bounds.isValid()) map.fitBounds(bounds);
+        }
 
-        map.on(L.Draw.Event.EDITED, saveToLocal);
-        map.on(L.Draw.Event.DELETED, saveToLocal);
+        // --- SAUVEGARDE LOCALE ---
+        function saveToLocal() {
+            const data = {
+                drawn: drawnItems.toGeoJSON(),
+                clustered: markerCluster.toGeoJSON()
+            };
+            localStorage.setItem('mapExpertStore', JSON.stringify(data));
+        }
 
-        // 7. GÉOCODAGE CSV
-        document.getElementById('csv-input').onchange = function(e) {
+        function loadFromLocal() {
+            const saved = localStorage.getItem('mapExpertStore');
+            if (!saved) return;
+            const data = JSON.parse(saved);
+            if (data.drawn) handleGeoJSON(data.drawn);
+            if (data.clustered) handleGeoJSON(data.clustered);
+        }
+
+        // --- ACTIONS BOUTONS ---
+        document.getElementById('file-input').onchange = (e) => {
             const reader = new FileReader();
-            reader.onload = async function(ev) {
+            reader.onload = (ev) => handleGeoJSON(JSON.parse(ev.target.result));
+            reader.readAsText(e.target.files[0]);
+        };
+
+        function exportData() {
+            const combined = { type: "FeatureCollection", features: [...drawnItems.toGeoJSON().features, ...markerCluster.toGeoJSON().features] };
+            const blob = new Blob([JSON.stringify(combined)], {type: "application/json"});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = 'export_carte.geojson'; a.click();
+        }
+
+        function clearAllData() {
+            if(confirm("Tout supprimer définitivement ?")) {
+                drawnItems.clearLayers();
+                markerCluster.clearLayers();
+                localStorage.removeItem('mapExpertStore');
+            }
+        }
+
+        // --- CSV GÉOCODAGE ---
+        document.getElementById('csv-input').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
                 const rows = ev.target.result.split('\n').filter(r => r.includes(',')).map(r => r.split(','));
                 const h = rows[0].map(v => v.trim().toLowerCase());
                 const idx = h.indexOf('adresse');
@@ -202,16 +211,14 @@
                 document.getElementById('prog-container').style.display = 'block';
                 for(let i=1; i<rows.length; i++) {
                     const addr = rows[i][idx]?.trim();
-                    const p = Math.round((i/(rows.length-1))*100);
-                    document.getElementById('prog-bar').style.width = p + "%";
-                    
+                    document.getElementById('prog-bar').style.width = Math.round((i/rows.length)*100) + "%";
                     if(addr) {
-                        await new Promise(r => setTimeout(r, 1100));
+                        await new Promise(r => setTimeout(r, 1100)); // Respect API
                         try {
                             const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`);
-                            const data = await res.json();
-                            if(data[0]) {
-                                const m = L.marker([data[0].lat, data[0].lon]);
+                            const d = await res.json();
+                            if(d[0]) {
+                                const m = L.marker([d[0].lat, d[0].lon]);
                                 m.bindPopup(createPopupContent(addr, m)).options.description = addr;
                                 markerCluster.addLayer(m);
                             }
@@ -220,46 +227,43 @@
                 }
                 document.getElementById('prog-container').style.display = 'none';
                 saveToLocal();
-                if(markerCluster.getLayers().length > 0) map.fitBounds(markerCluster.getBounds());
             };
             reader.readAsText(e.target.files[0]);
         };
 
-        // 8. IMPORT / EXPORT / RECHERCHE
-        function clearAllData() { if(confirm("Vider la carte ?")) { drawnItems.clearLayers(); markerCluster.clearLayers(); localStorage.removeItem('mapMasterData'); } }
+        // --- DESSIN ---
+        const drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: { circle: false, circlemarker: false },
+            edit: { featureGroup: drawnItems }
+        });
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, (e) => {
+            const l = e.layer;
+            const content = (e.layerType === 'marker') ? prompt("Titre :") : "Tracé";
+            l.bindPopup(createPopupContent(content || "Sans titre", l)).options.description = content;
+            if (e.layerType === 'marker') markerCluster.addLayer(l);
+            else drawnItems.addLayer(l);
+            saveToLocal();
+        });
 
-        function exportData() {
-            const combined = { type: "FeatureCollection", features: [...drawnItems.toGeoJSON().features, ...markerCluster.toGeoJSON().features] };
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([JSON.stringify(combined)], {type: "application/json"}));
-            a.download = 'projet_carto.geojson'; a.click();
-        }
-
-        document.getElementById('file-input').onchange = function(e) {
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                const geo = JSON.parse(ev.target.result);
-                importGeoJSONToLayer(geo, markerCluster);
-                saveToLocal();
-                map.fitBounds(markerCluster.getBounds());
-            };
-            reader.readAsText(e.target.files[0]);
-        };
-
+        // --- UTILS NAVIGATION ---
         function locateMe() { map.locate({setView: true, maxZoom: 15}); }
+        document.getElementById('search-input').onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(e.target.value)}`)
+                .then(r => r.json()).then(d => { if(d[0]) map.setView([d[0].lat, d[0].lon], 15); });
+            }
+        };
+
         map.on('moveend', () => {
             const c = map.getCenter();
             document.getElementById('pos-info').innerText = `Lat: ${c.lat.toFixed(4)} | Lon: ${c.lng.toFixed(4)}`;
         });
 
-        document.getElementById('search-input').onkeypress = function(e) {
-            if (e.key === 'Enter') {
-                fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(this.value))
-                .then(r => r.json()).then(d => { if(d[0]) map.setView([d[0].lat, d[0].lon], 15); });
-            }
-        };
-
+        // Initialisation
         window.onload = loadFromLocal;
+
     </script>
 </body>
 </html>
