@@ -3,38 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro : Suite Complète & Vues</title>
+    <title>Géo-Outil Pro : Menu Fixé</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     
     <style>
-        :root { --sidebar-width: 300px; --dark-blue: #2c3e50; --accent-blue: #3498db; --danger: #e74c3c; }
+        :root { --sidebar-width: 300px; --dark-blue: #2c3e50; --accent-blue: #3498db; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        #top-bar { height: 60px; background: var(--dark-blue); display: flex; align-items: center; justify-content: center; z-index: 1001; }
-        .search-box { width: 50%; position: relative; }
-        #search-input { width: 100%; padding: 10px 40px 10px 15px; border-radius: 20px; border: none; outline: none; }
+        #top-bar { height: 60px; background: var(--dark-blue); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .search-box { width: 50%; }
+        #search-input { width: 100%; padding: 10px; border-radius: 20px; border: none; outline: none; }
         
-        #container { display: flex; flex: 1; }
-        #sidebar { width: var(--sidebar-width); background: #fdfdfd; border-right: 1px solid #ccc; padding: 15px; z-index: 1000; overflow-y: auto; }
-        #map { flex: 1; background: #e0e0e0; position: relative; }
+        #container { display: flex; flex: 1; position: relative; }
+        #sidebar { width: var(--sidebar-width); background: #fdfdfd; border-right: 1px solid #ccc; padding: 15px; z-index: 1500; overflow-y: auto; }
+        #map { flex: 1; background: #ddd; position: relative; z-index: 1; }
 
-        .card { background: white; border: 1px solid #eee; padding: 12px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        /* Forcer l'affichage du menu des couches */
+        .leaflet-control-layers { 
+            margin-top: 10px !important; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.2) !important;
+            border: 2px solid rgba(0,0,0,0.2) !important;
+        }
+
+        .card { background: white; border: 1px solid #eee; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 5px; color: white; margin-bottom: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        
         .btn-csv { background: #8e44ad; }
-        .btn-stop { background: var(--danger); display: none; }
         .btn-export { background: #27ae60; }
         .btn-import { background: var(--accent-blue); }
-        .btn-loc { background: #f39c12; }
-
-        #prog-container { display: none; margin-top: 10px; background: #eee; border-radius: 10px; height: 18px; overflow: hidden; position: relative; }
-        #prog-bar { background: var(--accent-blue); height: 100%; width: 0%; transition: width 0.3s; }
-        #prog-text { position: absolute; width: 100%; text-align: center; font-size: 10px; line-height: 18px; color: #333; font-weight: bold; }
         
-        #log-status { font-size: 11px; color: #666; margin-top: 5px; }
+        #prog-container { display: none; background: #eee; border-radius: 10px; height: 18px; overflow: hidden; position: relative; margin-top: 10px; }
+        #prog-bar { background: var(--accent-blue); height: 100%; width: 0%; }
+        #prog-text { position: absolute; width: 100%; text-align: center; font-size: 10px; line-height: 18px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -48,31 +50,26 @@
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <button class="btn btn-loc" onclick="locateMe()"><i class="fa-solid fa-crosshairs"></i> Me géolocaliser</button>
-                <div id="pos-info" style="font-size: 12px; text-align: center; margin-top: 5px;">Lat/Lon...</div>
+                <button class="btn" style="background:#f39c12" onclick="map.locate({setView: true, maxZoom: 15})">
+                    <i class="fa-solid fa-crosshairs"></i> Me géolocaliser
+                </button>
             </div>
 
             <div class="card">
-                <h3 style="margin:0 0 10px 0; font-size:15px;">Import CSV</h3>
+                <h3>Import CSV</h3>
                 <button class="btn btn-csv" onclick="document.getElementById('csv-input').click()">
                     <i class="fa-solid fa-file-csv"></i> Charger CSV
                 </button>
-                <button id="btn-stop" class="btn btn-stop" onclick="stopGeocode()">Arrêter</button>
                 <input type="file" id="csv-input" style="display:none" accept=".csv">
-                
-                <div id="prog-container">
-                    <div id="prog-bar"></div>
-                    <div id="prog-text">0%</div>
-                </div>
-                <div id="log-status">Attente de fichier...</div>
+                <div id="prog-container"><div id="prog-bar"></div><div id="prog-text">0%</div></div>
             </div>
 
             <div class="card">
-                <h3 style="margin:0 0 10px 0; font-size:15px;">Données</h3>
+                <h3>Données</h3>
                 <button class="btn btn-export" onclick="exportData()">Exporter GeoJSON</button>
                 <button class="btn btn-import" onclick="document.getElementById('file-input').click()">Importer GeoJSON</button>
                 <input type="file" id="file-input" style="display:none" accept=".geojson">
-                <button class="btn" style="background:#e74c3c" onclick="clearMap()">Effacer tout</button>
+                <button class="btn" style="background:#e74c3c" onclick="if(confirm('Tout effacer ?')) drawnItems.clearLayers()">Effacer</button>
             </div>
         </aside>
 
@@ -83,142 +80,95 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
     <script>
-        let isProcessing = false;
+        // 1. Définition des fonds (URLs directes)
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '©CARTO' });
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '©OSM' });
+        const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '©Esri' });
 
-        // --- DÉFINITION DES COUCHES ---
-        const lightView = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© CARTO'
-        });
-        const osmView = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-            attribution: '© OSM France'
-        });
-        const satelliteView = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles © Esri'
+        // 2. Initialisation Carte
+        const map = L.map('map', {
+            center: [46.6, 2.2],
+            zoom: 6,
+            layers: [light], // Vue par défaut
+            zoomControl: false
         });
 
-        // Initialisation de la carte avec la vue allégée par défaut
-        const map = L.map('map', { 
-            zoomControl: false,
-            layers: [lightView] 
-        }).setView([46.6, 2.2], 6);
-
-        // --- CONTRÔLE DES COUCHES ---
+        // 3. Ajout du Menu (IMPORTANT : Juste après map)
         const baseMaps = {
-            "Vue Allégée": lightView,
-            "Plan Standard": osmView,
-            "Vue Satellite": satelliteView
+            "Vue Allégée": light,
+            "Plan OSM": osm,
+            "Satellite": sat
         };
-        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+        L.control.layers(baseMaps, null, { collapsed: false, position: 'topright' }).addTo(map);
+
+        // Autres contrôles
         L.control.zoom({ position: 'bottomright' }).addTo(map);
-        L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
+        L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
 
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
-        // --- GÉOLOCALISATION ---
-        function locateMe() { map.locate({setView: true, maxZoom: 15}); }
-        map.on('locationfound', (e) => {
-            L.circle(e.latlng, e.accuracy).addTo(map);
-            L.marker(e.latlng).addTo(map).bindPopup("Vous êtes ici").openPopup();
-        });
-
-        // --- CSV GÉOCODAGE ---
-        function stopGeocode() { isProcessing = false; }
-
-        document.getElementById('csv-input').onchange = function(e) {
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const rows = event.target.result.split('\n').filter(r => r.trim() !== "").map(row => row.split(','));
-                const headers = rows[0].map(h => h.trim().toLowerCase());
-                const addrIndex = headers.indexOf('adresse') !== -1 ? headers.indexOf('adresse') : headers.indexOf('address');
-
-                if (addrIndex === -1) return alert("Colonne 'adresse' manquante.");
-
-                const addresses = rows.slice(1);
-                isProcessing = true;
-                document.getElementById('btn-stop').style.display = 'flex';
-                document.getElementById('prog-container').style.display = 'block';
-
-                for (let i = 0; i < addresses.length && isProcessing; i++) {
-                    const addr = addresses[i][addrIndex].trim();
-                    const percent = Math.round(((i + 1) / addresses.length) * 100);
-                    document.getElementById('prog-bar').style.width = percent + "%";
-                    document.getElementById('prog-text').innerText = percent + "%";
-
-                    if (addr) {
-                        await new Promise(r => setTimeout(r, 1100));
-                        try {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`);
-                            const data = await res.json();
-                            if (data[0]) {
-                                const m = L.circleMarker([data[0].lat, data[0].lon], { radius: 7, color: '#8e44ad', weight: 2, fillOpacity: 0.6 });
-                                m.bindPopup(`<b>Import CSV</b><br>${addr}`).options.description = addr;
-                                drawnItems.addLayer(m);
-                            }
-                        } catch (err) {}
-                    }
-                }
-                document.getElementById('btn-stop').style.display = 'none';
-                document.getElementById('log-status').innerText = isProcessing ? "Terminé !" : "Interrompu.";
-                isProcessing = false;
-                if(drawnItems.getLayers().length > 0) map.fitBounds(drawnItems.getBounds());
-            };
-            reader.readAsText(e.target.files[0]);
-        };
-
-        // --- STANDARDS (Export/Import/Search) ---
-        function clearMap() { if(confirm("Effacer tout ?")) drawnItems.clearLayers(); }
-
-        function exportData() {
-            const data = drawnItems.toGeoJSON();
-            const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob); a.download = 'export_carte.geojson'; a.click();
-        }
-
-        document.getElementById('file-input').onchange = function(e) {
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                const geo = JSON.parse(ev.target.result);
-                L.geoJSON(geo, {
-                    onEachFeature: (f, l) => {
-                        if (f.properties && f.properties.description) l.bindPopup(f.properties.description);
-                        drawnItems.addLayer(l);
-                    }
-                });
-                map.fitBounds(drawnItems.getBounds());
-            };
-            reader.readAsText(e.target.files[0]);
-        };
-
-        document.getElementById('search-input').onkeypress = function(e) {
-            if (e.key === 'Enter') {
-                fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(this.value))
-                .then(r => r.json()).then(data => { if (data[0]) map.setView([data[0].lat, data[0].lon], 15); });
-            }
-        };
-
         // --- DESSIN ---
-        const drawControl = new L.Control.Draw({ 
-            position: 'topright', 
-            draw: { circle: false, circlemarker: false }, 
-            edit: { featureGroup: drawnItems } 
+        const drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: { circle: false, circlemarker: false },
+            edit: { featureGroup: drawnItems }
         });
         map.addControl(drawControl);
-        
+
         map.on(L.Draw.Event.CREATED, (e) => {
             const l = e.layer;
             if (e.layerType === 'marker') {
-                const t = prompt("Annotation :");
+                const t = prompt("Texte :");
                 if (t) { l.bindPopup(t).openPopup(); l.options.description = t; }
             }
             drawnItems.addLayer(l);
         });
 
-        map.on('moveend', () => {
-            const c = map.getCenter();
-            document.getElementById('pos-info').innerHTML = `Lat: ${c.lat.toFixed(3)} | Lon: ${c.lng.toFixed(3)}`;
-        });
+        // --- CSV GÉOCODAGE ---
+        document.getElementById('csv-input').onchange = function(e) {
+            const reader = new FileReader();
+            reader.onload = async function(ev) {
+                const rows = ev.target.result.split('\n').filter(r => r.includes(',')).map(r => r.split(','));
+                const h = rows[0].map(v => v.trim().toLowerCase());
+                const idx = h.indexOf('adresse');
+                if (idx === -1) return alert("Besoin d'une colonne 'adresse'");
+                
+                document.getElementById('prog-container').style.display = 'block';
+                for(let i=1; i<rows.length; i++) {
+                    const addr = rows[i][idx];
+                    const p = Math.round((i/(rows.length-1))*100);
+                    document.getElementById('prog-bar').style.width = p + "%";
+                    document.getElementById('prog-text').innerText = p + "%";
+                    
+                    await new Promise(res => setTimeout(res, 1100));
+                    try {
+                        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`);
+                        const d = await r.json();
+                        if(d[0]) {
+                            const m = L.circleMarker([d[0].lat, d[0].lon], {radius: 7, color: '#8e44ad'});
+                            m.bindPopup(addr).options.description = addr;
+                            drawnItems.addLayer(m);
+                        }
+                    } catch(err) {}
+                }
+                map.fitBounds(drawnItems.getBounds());
+            };
+            reader.readAsText(e.target.files[0]);
+        };
+
+        // --- EXPORT / RECHERCHE ---
+        function exportData() {
+            const blob = new Blob([JSON.stringify(drawnItems.toGeoJSON())], {type: "application/json"});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'carte.geojson'; a.click();
+        }
+
+        document.getElementById('search-input').onkeypress = function(e) {
+            if (e.key === 'Enter') {
+                fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(this.value))
+                .then(r => r.json()).then(d => { if(d[0]) map.setView([d[0].lat, d[0].lon], 15); });
+            }
+        };
     </script>
 </body>
 </html>
