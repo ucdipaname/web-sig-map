@@ -1,9 +1,9 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Simulateur de Capacité</title>
+    <title>Géo-Outil Pro - Capacité & Plans</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -37,7 +37,6 @@
         .people-highlight { color: var(--success); font-weight: bold; font-size: 1.2rem; }
         
         .setting-label { font-size: 13px; color: #666; font-weight: bold; display: block; margin-bottom: 8px; }
-        .slider-container { margin-top: 10px; }
         input[type="range"] { width: 100%; cursor: pointer; }
 
         .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
@@ -60,7 +59,7 @@
                 <h3><i class="fa-solid fa-users"></i> Capacité</h3>
                 <div class="slider-container">
                     <span class="setting-label">Ratio : <span id="ratio-val">3</span> pers / m²</span>
-                    <input type="range" id="ratio-slider" min="1" max="10" step="0.5" value="3">
+                    <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3">
                 </div>
                 <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
                 <div id="measure-display" class="info-box">Tracez une surface...</div>
@@ -72,8 +71,8 @@
                 <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:35px; cursor:pointer; border:none; background:none;">
             </div>
 
-            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
-            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Tout effacer</button>
+            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> GeoJSON</button>
+            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Effacer</button>
         </aside>
 
         <main id="map"></main>
@@ -84,11 +83,19 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
-        const map = L.map('map', { center: [46.6, 2.2], zoom: 6 });
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+        // --- COUCHES DE CARTE ---
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' });
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' });
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
+
+        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [light] }); // Par défaut sur Plan Allégé
         
-        L.control.layers({"Plan": osm, "Satellite": satellite}).addTo(map);
+        const baseMaps = {
+            "Plan Allégé": light,
+            "Standard (OSM)": osm,
+            "Satellite": satellite
+        };
+        L.control.layers(baseMaps).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
         let currentColor = "#0070F6";
@@ -101,7 +108,6 @@
         ratioSlider.oninput = function() {
             currentRatio = this.value;
             ratioVal.innerText = currentRatio;
-            // Recalculer pour toutes les couches existantes
             drawnItems.eachLayer(layer => updateMeasurements(layer));
         };
 
@@ -133,7 +139,7 @@
             }
         }
 
-        // --- OUTILS DE DESSIN ---
+        // --- DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: { 
@@ -183,13 +189,12 @@
             currentColor = e.target.value;
             drawControl.setDrawingOptions({
                 polyline: { shapeOptions: { color: currentColor } },
-                polygon: { shapeOptions: { color: currentColor } },
-                rectangle: { shapeOptions: { color: currentColor } }
+                polygon: { shapeOptions: { color: currentColor } }
             });
         };
 
         function clearAll() {
-            if(confirm("Tout effacer ?")) {
+            if(confirm("Effacer tout ?")) {
                 drawnItems.clearLayers();
                 document.getElementById('measure-display').innerHTML = "Tracez une surface...";
             }
@@ -201,7 +206,7 @@
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'export_terrain.geojson';
+            a.download = 'plan_capacite.geojson';
             a.click();
         }
     </script>
