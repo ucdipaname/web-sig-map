@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Mesures Précises</title>
+    <title>Géo-Outil Pro - Mesures de Précision</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -15,36 +15,40 @@
             --background: #FFF;
             --onBackground: #242424;
             --accent: #0070F6;
-            --onBackgroundSecondary: #5B5B5B;
-            --onBackgroundExtraLight: #F4F4F4;
             --dark: #1e272e;
+            --light-grey: #F4F4F4;
         }
 
-        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; color: var(--onBackground); overflow: hidden; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; color: var(--onBackground); overflow: hidden; }
+        
+        /* Barre de recherche */
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; flex-shrink: 0; }
         .search-container { width: 70%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         #search-results { position: absolute; top: 50px; left: 0; right: 0; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-height: 250px; overflow-y: auto; display: none; z-index: 3000; }
         .result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; color: #333; }
-        .result-item:hover { background: var(--onBackgroundExtraLight); color: var(--accent); }
+        .result-item:hover { background: var(--light-grey); color: var(--accent); }
 
         #container { display: flex; flex: 1; overflow: hidden; }
-        #sidebar { width: var(--sidebar-width); background: var(--onBackgroundExtraLight); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
+        
+        /* Barre latérale sans bouton "Ma position" */
+        #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; }
         
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #ddd; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #ddd; word-wrap: break-word; }
         .measure-highlight { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
         
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
         .btn-accent { background: var(--accent); }
+        .btn-accent:hover { background: #0056b3; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: 10 rue de la Paix, Paris)..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse précise..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -52,12 +56,12 @@
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures Actives</h3>
-                <div id="measure-display" class="info-box">Utilisez les outils à droite pour tracer.</div>
+                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures</h3>
+                <div id="measure-display" class="info-box">Tracez une ligne ou un polygone pour mesurer.</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-location-dot"></i> Dernier Point</h3>
+                <h3><i class="fa-solid fa-location-dot"></i> Coordonnées</h3>
                 <div id="address-display" class="info-box">Cliquez sur la carte</div>
                 <div id="coords-display" class="info-box">Lat: --, Lon: --</div>
             </div>
@@ -67,8 +71,11 @@
                 <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none; background: none;">
             </div>
 
-            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
+            <button class="btn btn-accent" onclick="exportData()">
+                <i class="fa-solid fa-file-export"></i> Exporter GeoJSON
+            </button>
         </aside>
+
         <main id="map"></main>
     </div>
 
@@ -77,7 +84,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
-        // --- 1. CONFIGURATION CARTE ---
+        // --- 1. CARTE ---
         const map = L.map('map').setView([46.6, 2.2], 6);
         const drawnItems = new L.FeatureGroup().addTo(map);
 
@@ -88,7 +95,7 @@
         let searchMarker = null;
         let currentColor = "#0070F6";
 
-        // --- 2. RECHERCHE D'ADRESSE ---
+        // --- 2. RECHERCHE ---
         const searchInput = document.getElementById('search-input');
         const searchResults = document.getElementById('search-results');
 
@@ -114,42 +121,33 @@
                 });
         });
 
-        // --- 3. LOGIQUE DE MESURE ---
+        // --- 3. CALCULS ---
         function calculateMeasurements(layer) {
             let resultHtml = "";
-
-            // Calcul de distance (Polyline)
-            if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+            if (layer instanceof L.Polygon) {
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                const areaStr = area > 10000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(1) + " m²";
+                resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span>`;
+            } else if (layer instanceof L.Polyline) {
                 const latlngs = layer.getLatLngs();
                 let distance = 0;
                 for (let i = 0; i < latlngs.length - 1; i++) {
                     distance += latlngs[i].distanceTo(latlngs[i+1]);
                 }
                 const distStr = distance > 1000 ? (distance/1000).toFixed(2) + " km" : distance.toFixed(1) + " m";
-                resultHtml = `Longueur : <span class="measure-highlight">${distStr}</span>`;
-                layer.bindPopup(resultHtml).openPopup();
+                resultHtml = `Distance : <span class="measure-highlight">${distStr}</span>`;
             }
-
-            // Calcul de surface (Polygon)
-            if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                const areaStr = area > 10000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(1) + " m²";
-                resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span>`;
-                layer.bindPopup(resultHtml).openPopup();
-            }
-
             if (resultHtml) {
                 document.getElementById('measure-display').innerHTML = resultHtml;
+                layer.bindPopup(resultHtml).openPopup();
             }
         }
 
-        // --- 4. OUTILS DE DESSIN ---
+        // --- 4. DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: { 
-                circle: false, 
-                circlemarker: false, 
-                marker: true,
+                circle: false, circlemarker: false, marker: true,
                 polyline: { shapeOptions: { color: currentColor } },
                 polygon: { shapeOptions: { color: currentColor } },
                 rectangle: { shapeOptions: { color: currentColor } }
@@ -166,7 +164,6 @@
 
         document.getElementById('color-picker').onchange = (e) => {
             currentColor = e.target.value;
-            // Mise à jour dynamique des réglages du pinceau
             drawControl.setDrawingOptions({
                 polyline: { shapeOptions: { color: currentColor } },
                 polygon: { shapeOptions: { color: currentColor } },
@@ -183,28 +180,24 @@
         }
 
         map.on('click', function(e) {
-            if (e.originalEvent.target.id !== "map") return; // Évite les clics sur contrôles
+            if (e.originalEvent.target.id !== "map") return;
             const {lat, lng} = e.latlng;
             fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`)
                 .then(r => r.json()).then(data => {
-                    const label = data.features[0] ? data.features[0].properties.label : "Adresse inconnue";
+                    const label = data.features[0] ? data.features[0].properties.label : "Lieu sélectionné";
                     updateMapPoint(lat, lng, label);
                 });
         });
 
         function exportData() {
             const data = drawnItems.toGeoJSON();
-            if (data.features.length === 0) {
-                alert("Rien à exporter. Dessinez d'abord un élément.");
-                return;
-            }
+            if (data.features.length === 0) return alert("Dessinez quelque chose d'abord.");
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'export_geotool.geojson';
+            a.download = 'export_plan.geojson';
             a.click();
         }
     </script>
 </body>
 </html>
-     
