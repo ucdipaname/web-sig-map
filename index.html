@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité - Unités Spéciales & Couleurs Fixées</title>
+    <title>Géo-Outil Sécurité - Fix Import & Visibilité</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -24,30 +24,30 @@
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; position: relative; }
 
-        /* Pictos dans la Box */
+        /* Pictos */
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
         .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
-        .picto-selected { outline: 4px solid #ff9f43; transform: scale(1.1); }
-
-        /* Styles Spécifiques des Formes sur Carte */
+        
         .unit-label-container { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-        .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
-        .unit-cie { border-radius: 50%; width: 35px; height: 35px; } /* Cercle */
-        .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; } /* Losange */
-        .unit-brav span { transform: rotate(-45deg); } /* Redresser le texte du losange */
+        .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); }
+        .unit-cie { border-radius: 50%; width: 35px; height: 35px; }
+        .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; }
+        .unit-brav span { transform: rotate(-45deg); }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
 
-        /* Interface Sidebar */
+        /* Sidebar UI */
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
         .layer-active { background: #e3f2fd; border-color: #0070F6; font-weight: bold; }
+        .layer-item i { cursor: pointer; padding: 5px; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; }
         .btn-accent { background: var(--accent); }
         .btn-export { background: #27ae60; }
-        .btn-frame { background: #f39c12; }
         .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; margin-top: 5px; color: #0056b3; min-height: 40px; }
+        
+        .attr-table { font-size: 10px; border-collapse: collapse; width: 100%; }
+        .attr-table td { border-bottom: 1px solid #eee; padding: 2px; }
 
-        /* Cadre 60x40 Paysage */
         #export-frame {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 600px; height: 400px; border: 4px dashed #f39c12;
@@ -69,7 +69,7 @@
         <aside id="sidebar">
             <div class="card">
                 <h3><i class="fa-solid fa-camera"></i> Mise en page</h3>
-                <button class="btn btn-frame" onclick="toggleFrame()">Cadre Paysage 60x40</button>
+                <button class="btn btn-accent" onclick="toggleFrame()" style="background:#f39c12">Cadre Paysage 60x40</button>
                 <button class="btn btn-export" onclick="exportToImage()" style="margin-top:10px;">Télécharger JPEG</button>
             </div>
 
@@ -77,13 +77,6 @@
                 <h3><i class="fa-solid fa-paint-brush"></i> Style Zones</h3>
                 <input type="color" id="style-color" value="#0070F6" style="width:100%; height:35px; border:none; cursor:pointer;">
                 <input type="range" id="style-weight" min="1" max="10" value="3" style="width:100%; margin-top:10px;">
-            </div>
-
-            <div class="card">
-                <h3><i class="fa-solid fa-users"></i> Capacité</h3>
-                <div id="measure-display" class="info-box">Aucune zone.</div>
-                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin-top:10px;">
-                <small>Ratio : <span id="ratio-val">3</span> pers/m²</small>
             </div>
 
             <div class="card">
@@ -119,7 +112,6 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
-        // --- 1. CONFIGURATION CARTE ---
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { crossOrigin: 'Anonymous' });
         const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { crossOrigin: 'Anonymous' });
         const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [satellite] });
@@ -128,97 +120,10 @@
         let layersData = [];
         let activeLayerId = null;
         let selectedUnitType = null;
-        let lastPolygon = null;
 
         L.DomEvent.disableClickPropagation(document.getElementById('picto-box'));
 
-        // --- 2. GESTION DES ZONES ET COULEURS ---
-        map.on(L.Draw.Event.CREATED, (e) => {
-            const layer = e.layer;
-            const userColor = document.getElementById('style-color').value;
-            const userWeight = parseInt(document.getElementById('style-weight').value);
-
-            // Application immédiate de la personnalisation
-            layer.setStyle({
-                color: userColor,
-                weight: userWeight,
-                fillColor: userColor,
-                fillOpacity: 0.3
-            });
-
-            const group = layersData.find(l => l.id === activeLayerId).group;
-            group.addLayer(layer);
-
-            if (layer instanceof L.Polygon) {
-                lastPolygon = layer;
-                updateMeasure(layer);
-                layer.on('edit', () => updateMeasure(layer));
-            }
-        });
-
-        function updateMeasure(poly) {
-            if (!poly || !(poly instanceof L.Polygon)) return;
-            const ratio = document.getElementById('ratio-slider').value;
-            document.getElementById('ratio-val').innerText = ratio;
-            const area = L.GeometryUtil.geodesicArea(poly.getLatLngs()[0]);
-            document.getElementById('measure-display').innerHTML = `Surface : ${area.toFixed(1)} m²<br>Capacité : ${Math.round(area * ratio).toLocaleString()} pers.`;
-        }
-
-        // --- 3. GESTION DES PICTOS (CIE & BRAV) ---
-        function selectUnit(event, type) {
-            if (event) event.stopPropagation();
-            selectedUnitType = type;
-            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
-            document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
-            map.getContainer().style.cursor = 'crosshair';
-        }
-
-        map.on('click', (e) => {
-            if (!selectedUnitType) return;
-            const name = prompt("Nom ?");
-            const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-            
-            if (name) {
-                let htmlContent = '';
-                if (selectedUnitType === 'CIE') {
-                    htmlContent = `<div class="unit-label-container"><div class="unit-box unit-cie" style="background:#FF0000">${selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
-                } else if (selectedUnitType === 'BRAV') {
-                    htmlContent = `<div class="unit-label-container"><div class="unit-box unit-brav" style="background:#008000"><span>${selectedUnitType}</span></div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
-                } else {
-                    const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
-                    htmlContent = `<div class="unit-label-container"><div class="unit-box" style="background:${color}">${selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
-                }
-
-                const icon = L.divIcon({ className: 'custom-icon', html: htmlContent, iconSize: [100, 60] });
-                const group = layersData.find(l => l.id === activeLayerId).group;
-                group.addLayer(L.marker(e.latlng, {icon: icon, draggable: true}));
-            }
-            selectedUnitType = null;
-            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
-            map.getContainer().style.cursor = '';
-        });
-
-        // --- 4. IMPORT / EXPORT / RECHERCHE ---
-        function toggleFrame() {
-            const f = document.getElementById('export-frame');
-            f.style.display = (f.style.display === 'block') ? 'none' : 'block';
-        }
-
-        function exportToImage() {
-            const f = document.getElementById('export-frame');
-            const was = f.style.display;
-            f.style.display = 'none';
-            document.getElementById('picto-box').style.display = 'none';
-            html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = 'plan_securite.jpg';
-                link.href = canvas.toDataURL('image/jpeg', 0.9);
-                link.click();
-                f.style.display = was;
-                document.getElementById('picto-box').style.display = 'flex';
-            });
-        }
-
+        // --- GESTION CALQUES ---
         function addNewLayer(name) {
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
@@ -228,17 +133,118 @@
 
         function setActiveLayer(id) { activeLayerId = id; updateUI(); }
 
+        function toggleVisibility(id, event) {
+            event.stopPropagation();
+            const l = layersData.find(x => x.id === id);
+            l.visible = !l.visible;
+            if (l.visible) map.addLayer(l.group); else map.removeLayer(l.group);
+            updateUI();
+        }
+
         function updateUI() {
             const list = document.getElementById('layers-list');
             list.innerHTML = layersData.map(l => `
                 <div class="layer-item ${l.id === activeLayerId ? 'layer-active' : ''}" onclick="setActiveLayer(${l.id})">
                     <span>${l.name}</span>
+                    <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'}" onclick="toggleVisibility(${l.id}, event)"></i>
                 </div>
             `).join('');
+            
             if (window.dc) map.removeControl(window.dc);
             const activeGroup = layersData.find(l => l.id === activeLayerId).group;
             window.dc = new L.Control.Draw({ edit: { featureGroup: activeGroup }, draw: { marker: false, circle: false, circlemarker: false, polyline: true, polygon: true } });
             map.addControl(window.dc);
+        }
+
+        // --- DESSIN ---
+        map.on(L.Draw.Event.CREATED, (e) => {
+            const layer = e.layer;
+            const color = document.getElementById('style-color').value;
+            layer.setStyle({ color: color, weight: document.getElementById('style-weight').value, fillColor: color, fillOpacity: 0.3 });
+            layersData.find(l => l.id === activeLayerId).group.addLayer(layer);
+        });
+
+        // --- PICTOS ---
+        function selectUnit(event, type) {
+            if (event) event.stopPropagation();
+            selectedUnitType = type;
+            map.getContainer().style.cursor = 'crosshair';
+        }
+
+        map.on('click', (e) => {
+            if (!selectedUnitType) return;
+            const name = prompt("Nom ?");
+            const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+            if (name) {
+                let html = '';
+                if(selectedUnitType==='CIE') html=`<div class="unit-label-container"><div class="unit-box unit-cie" style="background:red">${selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
+                else if(selectedUnitType==='BRAV') html=`<div class="unit-label-container"><div class="unit-box unit-brav" style="background:green"><span>${selectedUnitType}</span></div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
+                else {
+                    let c = selectedUnitType==='CRS'?'blue':'#5D4037';
+                    html=`<div class="unit-label-container"><div class="unit-box" style="background:${c}">${selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
+                }
+                const icon = L.divIcon({ className: 'custom-icon', html: html, iconSize: [100, 60] });
+                layersData.find(l => l.id === activeLayerId).group.addLayer(L.marker(e.latlng, {icon: icon, draggable: true}));
+            }
+            selectedUnitType = null;
+            map.getContainer().style.cursor = '';
+        });
+
+        // --- IMPORT CSV FIX ---
+        document.getElementById('sig-import').onchange = function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            const group = layersData.find(l => l.id === activeLayerId).group;
+
+            reader.onload = async (ev) => {
+                if (file.name.endsWith('.csv')) {
+                    const content = ev.target.result;
+                    const lines = content.split(/\r?\n/);
+                    const sep = content.includes(';') ? ';' : ',';
+                    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
+                    
+                    const latIdx = headers.findIndex(h => h.includes('lat'));
+                    const lngIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
+
+                    lines.slice(1).forEach(line => {
+                        const cols = line.split(sep);
+                        if (cols.length >= 2) {
+                            const lat = parseFloat(cols[latIdx]);
+                            const lng = parseFloat(cols[lngIdx]);
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                let txt = `<table class="attr-table">`;
+                                headers.forEach((h, i) => txt += `<tr><td><b>${h}</b></td><td>${cols[i]}</td></tr>`);
+                                L.marker([lat, lng]).addTo(group).bindPopup(txt + `</table>`);
+                            }
+                        }
+                    });
+                } else if (file.name.endsWith('.zip')) {
+                    const geo = await shp(ev.target.result);
+                    L.geoJSON(geo, { onEachFeature: (f,l) => group.addLayer(l) });
+                } else {
+                    L.geoJSON(JSON.parse(ev.target.result)).addTo(group);
+                }
+            };
+            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file); else reader.readAsText(file);
+        };
+
+        // --- EXPORTS ---
+        function toggleFrame() {
+            const f = document.getElementById('export-frame');
+            f.style.display = (f.style.display === 'block') ? 'none' : 'block';
+        }
+
+        function exportToImage() {
+            const f = document.getElementById('export-frame');
+            f.style.display = 'none';
+            document.getElementById('picto-box').style.display = 'none';
+            html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'plan.jpg';
+                link.href = canvas.toDataURL('image/jpeg', 0.9);
+                link.click();
+                document.getElementById('picto-box').style.display = 'flex';
+            });
         }
 
         function exportAll() {
@@ -246,6 +252,9 @@
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'projet.json'; a.click();
         }
 
+        function promptNewLayer() { let n = prompt("Nom ?"); if(n) addNewLayer(n); }
+
+        // --- RECHERCHE ---
         document.getElementById('search-input').oninput = async function() {
             const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`);
             const d = await r.json();
@@ -254,7 +263,8 @@
             res.style.display = 'block';
         };
 
-        addNewLayer("Zone 1");
+        addNewLayer("Secteur Principal");
     </script>
 </body>
 </html>
+
