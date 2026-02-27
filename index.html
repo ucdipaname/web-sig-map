@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Expert - Correction Drag & Drop</title>
+    <title>Géo-Outil Expert - Version Stabilisée</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -21,16 +21,18 @@
 
         #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
-        #map { flex: 1; z-index: 1; position: relative; }
+        #map { flex: 1; z-index: 1; position: relative; cursor: crosshair; }
 
-        /* Pictos Unités - Correction du curseur */
+        /* Fenêtre Pictos Bas Droite */
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
-        .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: move; user-select: none; }
+        .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; }
+        .picto-item:hover { transform: scale(1.1); border-color: var(--accent); }
+        .picto-selected { outline: 3px solid var(--accent); box-shadow: 0 0 10px var(--accent); }
 
-        /* Étiquettes */
+        /* Étiquettes sur carte */
         .unit-label-container { text-align: center; display: flex; flex-direction: column; align-items: center; }
         .unit-box { width: 45px; height: 22px; border: 2px solid black; color: white; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; }
-        .unit-info { background: white; border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; white-space: nowrap; font-weight: bold; box-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
+        .unit-info { background: white; border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; white-space: nowrap; font-weight: bold; }
 
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .info-box { background: #eef6ff; padding: 12px; border-radius: 6px; font-size: 1rem; margin-top: 10px; border: 1px solid var(--accent); font-weight: bold; color: #000; }
@@ -62,22 +64,23 @@
 
             <div class="card">
                 <h3><i class="fa-solid fa-users"></i> Capacité</h3>
-                <div id="measure-display" class="info-box">Ratio x3 activé.</div>
+                <div id="measure-display" class="info-box">Prêt (Ratio x3).</div>
                 <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin-top:10px;">
                 <small>Densité : <span id="ratio-val">3</span> pers/m²</small>
             </div>
 
             <div class="card">
-                <label class="btn btn-accent" style="cursor:pointer;">Importer Données<input type="file" id="sig-import" style="display:none"></label>
+                <h3><i class="fa-solid fa-file-import"></i> Outils</h3>
+                <label class="btn btn-accent" style="cursor:pointer;">Importer (CSV/ZIP/JSON)<input type="file" id="sig-import" style="display:none"></label>
                 <button class="btn btn-accent" onclick="exportAll()" style="margin-top:10px;">Exporter Projet</button>
             </div>
         </aside>
 
         <main id="map">
             <div id="picto-box">
-                <div style="font-size: 9px; font-weight: bold; text-align: center;">UNITÉS</div>
-                <div class="picto-item" style="background:#0000FF" draggable="true" ondragstart="handleDragStart(event, 'CRS')">CRS</div>
-                <div class="picto-item" style="background:#5D4037" draggable="true" ondragstart="handleDragStart(event, 'GM')">GM</div>
+                <div style="font-size: 9px; font-weight: bold; text-align: center;">1. CLIQUEZ ICI <br> 2. CLIQUEZ CARTE</div>
+                <div class="picto-item" id="btn-crs" style="background:#0000FF" onclick="selectUnit('CRS')">CRS</div>
+                <div class="picto-item" id="btn-gm" style="background:#5D4037" onclick="selectUnit('GM')">GM</div>
             </div>
         </main>
     </div>
@@ -91,62 +94,61 @@
         // INITIALISATION
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
         const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        
         const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [satellite] });
-        L.control.layers({ "Satellite": satellite, "Vue Allégée": light }).addTo(map);
+        L.control.layers({ "Satellite": satellite, "Vue Allégée": light, "Plan OSM": osm }).addTo(map);
 
         let layersData = [];
         let activeLayerId = null;
         let currentRatio = 3;
+        let selectedUnitType = null;
 
-        // --- GESTION DRAG & DROP (CORRIGÉE) ---
-        function handleDragStart(e, type) {
-            e.dataTransfer.setData('text/plain', type);
-            e.dataTransfer.effectAllowed = 'move';
+        // --- NOUVELLE LOGIQUE : CLIC POUR PLACER ---
+        function selectUnit(type) {
+            selectedUnitType = type;
+            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
+            document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
         }
 
-        const mapDiv = document.getElementById('map');
-        mapDiv.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        });
+        map.on('click', function(e) {
+            if (!selectedUnitType) return;
 
-        mapDiv.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const type = e.dataTransfer.getData('text/plain');
-            if (type !== 'CRS' && type !== 'GM') return;
-
-            const latlng = map.mouseEventToLatLng(e);
-            const name = prompt("Nom de l'unité ?", type);
+            const name = prompt("Nom de l'unité ?", selectedUnitType);
             const time = prompt("Heure de mise en place ?", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
             
             if (name) {
-                const color = (type === 'CRS') ? '#0000FF' : '#5D4037';
+                const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
                 const icon = L.divIcon({
                     className: '',
                     html: `<div class="unit-label-container">
-                        <div class="unit-box" style="background:${color};">${type}</div>
+                        <div class="unit-box" style="background:${color};">${selectedUnitType}</div>
                         <div class="unit-info">${name}</div>
-                        <div class="unit-info" style="color:#d35400;">${time}</div>
+                        <div class="unit-info" style="color:#d35400; border-top:none;">${time}</div>
                     </div>`,
                     iconSize: [60, 50], iconAnchor: [30, 11]
                 });
                 
-                const currentGroup = layersData.find(l => l.id === activeLayerId).group;
-                L.marker(latlng, { icon: icon, draggable: true }).addTo(currentGroup);
+                const group = layersData.find(l => l.id === activeLayerId).group;
+                L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
             }
+
+            // Désélectionner après la pose
+            selectedUnitType = null;
+            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
         });
 
         // --- RECHERCHE ---
         const sInput = document.getElementById('search-input');
         const sRes = document.getElementById('search-results');
         sInput.addEventListener('input', async () => {
-            if (sInput.value.length < 3) return;
+            if (sInput.value.length < 3) { sRes.style.display='none'; return; }
             const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(sInput.value)}&limit=5`);
             const d = await r.json();
             sRes.innerHTML = d.features.map(f => `<div class="search-item" onclick="goTo([${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}], '${f.properties.label.replace(/'/g, "\\'")}')">${f.properties.label}</div>`).join('');
             sRes.style.display = 'block';
         });
-        function goTo(c, l) { map.setView(c, 17); L.marker(c).addTo(map).bindPopup(l).openPopup(); sRes.style.display = 'none'; sInput.value = l; }
+        function goTo(c, l) { map.setView(c, 18); L.marker(c).addTo(map).bindPopup(l).openPopup(); sRes.style.display = 'none'; sInput.value = l; }
 
         // --- CALQUES ---
         function addNewLayer(name) {
@@ -165,7 +167,7 @@
             map.addControl(window.dc);
         }
 
-        // --- CALCULS ---
+        // --- CALCULS & DESSIN ---
         map.on(L.Draw.Event.CREATED, e => {
             e.layer.setStyle({ color: document.getElementById('style-color').value });
             layersData.find(l => l.id === activeLayerId).group.addLayer(e.layer);
@@ -178,7 +180,7 @@
             }
         });
 
-        // --- IMPORTS ---
+        // --- IMPORT ---
         document.getElementById('sig-import').onchange = function(e) {
             const file = e.target.files[0];
             const reader = new FileReader();
@@ -187,6 +189,19 @@
                 if (file.name.endsWith('.zip')) {
                     const geo = await shp(ev.target.result);
                     L.geoJSON(geo, { onEachFeature: (f,l) => group.addLayer(l) });
+                } else if (file.name.endsWith('.csv')) {
+                    const lines = ev.target.result.split('\n').slice(1);
+                    for(let line of lines) {
+                        const cols = line.split(/[;,]/);
+                        if(cols[0]) {
+                            const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[0])}&limit=1`);
+                            const j = await res.json();
+                            if(j.features.length > 0) {
+                                const [lo, la] = j.features[0].geometry.coordinates;
+                                L.marker([la, lo]).addTo(group).bindPopup(cols[0]);
+                            }
+                        }
+                    }
                 } else {
                     L.geoJSON(JSON.parse(ev.target.result), { onEachFeature: (f,l) => group.addLayer(l) });
                 }
@@ -195,10 +210,15 @@
             else reader.readAsText(file);
         };
 
+        document.getElementById('ratio-slider').oninput = function() {
+            currentRatio = this.value;
+            document.getElementById('ratio-val').innerText = this.value;
+        };
+
         function promptNewLayer() { const n = prompt("Nom du calque :"); if(n) addNewLayer(n); }
         function exportAll() {
             let d = {}; layersData.forEach(l => d[l.name] = l.group.toGeoJSON());
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'export.json'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'plan.json'; a.click();
         }
 
         addNewLayer("Secteur Principal");
