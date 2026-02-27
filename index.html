@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Expert - Multi-Calques</title>
+    <title>Géo-Outil Expert - Calques & Pictos</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -21,7 +21,23 @@
 
         #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
-        #map { flex: 1; z-index: 1; }
+        #map { flex: 1; z-index: 1; position: relative; }
+
+        /* Boîte de Pictogrammes en bas à droite */
+        #picto-box { 
+            position: absolute; bottom: 20px; right: 20px; 
+            background: rgba(255,255,255,0.9); padding: 10px; 
+            border-radius: 8px; border: 2px solid var(--dark);
+            z-index: 1000; display: flex; flex-direction: column; gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .picto-btn { 
+            width: 50px; height: 30px; background: #0000FF; color: white; 
+            border: 2px solid black; font-weight: bold; font-size: 10px; 
+            display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; user-select: none;
+        }
+        .picto-btn:hover { transform: scale(1.05); }
 
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 10px; border: 1px solid #ddd; font-weight: bold; }
@@ -31,8 +47,6 @@
         
         /* Style des Calques */
         .layer-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
-        .layer-item:last-child { border-bottom: none; }
-        .layer-item input[type="radio"] { margin: 0; }
         .layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .layer-toggle { cursor: pointer; color: var(--accent); font-size: 1.1rem; }
         
@@ -55,8 +69,7 @@
         <aside id="sidebar">
             <div class="card">
                 <h3><i class="fa-solid fa-layer-group"></i> Calques</h3>
-                <div id="layers-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #eee; border-radius: 5px;">
-                    </div>
+                <div id="layers-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #eee; border-radius: 5px;"></div>
                 <div style="display: flex; gap: 5px;">
                     <input type="text" id="new-layer-name" placeholder="Nom du calque..." style="flex:1; padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
                     <button class="btn-accent" onclick="addNewLayer()" style="padding: 5px 10px; border: none; border-radius: 4px; color: white; cursor: pointer;"><i class="fa-solid fa-plus"></i></button>
@@ -74,18 +87,16 @@
                 <div style="text-align:center; font-weight:bold;"><span id="ratio-val">3</span> pers / m²</div>
             </div>
 
-            <div class="card">
-                <h3><i class="fa-solid fa-file-csv"></i> Importation</h3>
-                <label style="display:block; text-align:center; padding:15px; border:2px dashed #aaa; cursor:pointer; background:#fff; font-size: 0.8rem;">
-                    CSV, GeoJSON ou ZIP
-                    <input type="file" id="sig-import" style="display:none" accept=".csv,.geojson,.json,.zip">
-                </label>
-            </div>
-
             <button class="btn btn-accent" onclick="exportAllLayers()">Exporter Tout (JSON)</button>
             <button class="btn btn-danger" onclick="clearActiveLayer()">Vider Calque Actif</button>
         </aside>
-        <main id="map"></main>
+
+        <main id="map">
+            <div id="picto-box">
+                <div style="font-size: 10px; font-weight: bold; text-align: center; margin-bottom: 5px;">UNITÉS</div>
+                <div class="picto-btn" onclick="activatePicto('CRS')">CRS</div>
+            </div>
+        </main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -98,26 +109,21 @@
         // --- CONFIGURATION ---
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' });
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' });
-
         const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [satellite] });
-        L.control.layers({ "Satellite": satellite, "Plan": osm, "Vue Allégée": light }).addTo(map);
-
-        let layersData = []; // Stocke les calques { id, name, group, visible }
+        
+        let layersData = []; 
         let activeLayerId = null;
         let searchMarker = null;
         let currentRatio = 3;
+        let selectedPicto = null;
 
         // --- GESTION DES CALQUES ---
         function addNewLayer(name = null) {
             const layerName = name || document.getElementById('new-layer-name').value || `Calque ${layersData.length + 1}`;
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
-            
             layersData.push({ id, name: layerName, group, visible: true });
             if (!activeLayerId) activeLayerId = id;
-            
-            document.getElementById('new-layer-name').value = "";
             renderLayersList();
             updateDrawControl();
         }
@@ -130,17 +136,14 @@
                 div.className = "layer-item";
                 div.innerHTML = `
                     <input type="radio" name="active-layer" ${l.id === activeLayerId ? 'checked' : ''} onchange="setActiveLayer(${l.id})">
-                    <span class="layer-name" title="${l.name}">${l.name}</span>
+                    <span class="layer-name">${l.name}</span>
                     <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'} layer-toggle" onclick="toggleLayerVisibility(${l.id})"></i>
                 `;
                 list.appendChild(div);
             });
         }
 
-        function setActiveLayer(id) {
-            activeLayerId = id;
-            updateDrawControl();
-        }
+        function setActiveLayer(id) { activeLayerId = id; updateDrawControl(); }
 
         function toggleLayerVisibility(id) {
             const layer = layersData.find(l => l.id === id);
@@ -150,16 +153,49 @@
             renderLayersList();
         }
 
-        function updateDrawControl() {
-            const activeGroup = layersData.find(l => l.id === activeLayerId)?.group;
+        // --- GESTION DES PICTOGRAMMES ---
+        function activatePicto(type) {
+            selectedPicto = type;
+            document.body.style.cursor = "crosshair";
+            // On désactive le dessin Leaflet.draw temporairement pour poser l'icône
             if (window.drawControl) map.removeControl(window.drawControl);
-            
-            window.drawControl = new L.Control.Draw({
-                edit: { featureGroup: activeGroup },
-                draw: { circle: false, marker: false, polyline: false, circlemarker: false }
-            });
-            map.addControl(window.drawControl);
         }
+
+        map.on('click', function(e) {
+            if (selectedPicto === 'CRS') {
+                const activeGroup = layersData.find(l => l.id === activeLayerId).group;
+                
+                // Création d'un icône personnalisée HTML/CSS
+                const crsIcon = L.divIcon({
+                    className: 'crs-marker-container',
+                    html: `<div class="crs-rect" style="background:#0000FF; border:2px solid black; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; width:100%; height:100%; font-size:10px;">CRS</div>`,
+                    iconSize: [40, 20]
+                });
+
+                const marker = L.marker(e.latlng, { icon: crsIcon }).addTo(activeGroup);
+                marker.bindPopup("Unité : CRS");
+                
+                // Reset curseur et outils
+                selectedPicto = null;
+                document.body.style.cursor = "default";
+                updateDrawControl();
+            }
+        });
+
+        // --- MISE À L'ÉCHELLE DYNAMIQUE DES PICTOGRAMMES ---
+        map.on('zoomend', function() {
+            const currentZoom = map.getZoom();
+            // Facteur d'échelle : on réduit la taille si on dézoome
+            const scale = Math.pow(2, currentZoom - 18); 
+            const baseW = 40, baseH = 20;
+            
+            // On ajuste tous les marqueurs CRS sur la carte
+            document.querySelectorAll('.crs-rect').forEach(el => {
+                el.parentElement.style.width = (baseW * Math.max(scale, 0.2)) + "px";
+                el.parentElement.style.height = (baseH * Math.max(scale, 0.2)) + "px";
+                el.style.fontSize = (10 * Math.max(scale, 0.5)) + "px";
+            });
+        });
 
         // --- RECHERCHE ---
         const sInput = document.getElementById('search-input');
@@ -177,8 +213,7 @@
                     const [lon, lat] = f.geometry.coordinates;
                     map.setView([lat, lon], 19);
                     if (searchMarker) map.removeLayer(searchMarker);
-                    searchMarker = L.circleMarker([lat, lon], { radius: 8, color: '#ff4500', fillColor: '#ff4500', fillOpacity: 0.8, className: 'pulse-marker' }).addTo(map);
-                    searchMarker.bindPopup(`<b>Adresse :</b><br>${f.properties.label}`).openPopup();
+                    searchMarker = L.circleMarker([lat, lon], { radius: 8, color: '#ff4500', fillColor: '#ff4500', className: 'pulse-marker' }).addTo(map);
                     sRes.style.display = 'none';
                     sInput.value = f.properties.label;
                 };
@@ -187,74 +222,37 @@
             sRes.style.display = 'block';
         });
 
-        // --- CALCULS ---
-        function updateMeasurements(layer) {
-            if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                const cap = Math.floor(area * currentRatio);
-                const txt = `Surface: ${area.toFixed(1)} m²<br>Capacité: ${cap.toLocaleString()} pers.`;
-                document.getElementById('measure-display').innerHTML = txt;
-                layer.bindPopup(txt);
-            }
+        // --- DESSIN ---
+        function updateDrawControl() {
+            const activeGroup = layersData.find(l => l.id === activeLayerId)?.group;
+            if (window.drawControl) map.removeControl(window.drawControl);
+            window.drawControl = new L.Control.Draw({
+                edit: { featureGroup: activeGroup },
+                draw: { circle: false, marker: false, polyline: false, circlemarker: false }
+            });
+            map.addControl(window.drawControl);
         }
 
-        // --- DESSIN ---
         map.on(L.Draw.Event.CREATED, e => {
             const activeGroup = layersData.find(l => l.id === activeLayerId).group;
             activeGroup.addLayer(e.layer);
-            updateMeasurements(e.layer);
-            if(e.layer instanceof L.Polygon) e.layer.openPopup();
+            if (e.layer instanceof L.Polygon) {
+                const area = L.GeometryUtil.geodesicArea(e.layer.getLatLngs()[0]);
+                const cap = Math.floor(area * currentRatio);
+                e.layer.bindPopup(`Surface: ${area.toFixed(1)} m²<br>Capacité: ${cap} pers.`).openPopup();
+            }
         });
 
-        map.on('draw:editvertex', e => updateMeasurements(e.poly));
-        map.on(L.Draw.Event.EDITED, e => e.layers.eachLayer(layer => updateMeasurements(layer)));
-
-        // --- INITIALISATION PAR DÉFAUT ---
+        // --- INITIALISATION ---
         addNewLayer("Principal");
-
-        // --- FONCTIONS SIDEBAR ---
-        document.getElementById('ratio-slider').oninput = function() {
-            currentRatio = this.value;
-            document.getElementById('ratio-val').innerText = this.value;
-            layersData.forEach(l => l.group.eachLayer(ly => { if(ly instanceof L.Polygon) updateMeasurements(ly); }));
-        };
-
-        function clearActiveLayer() {
-            if(confirm("Vider le calque actif ?")) {
-                layersData.find(l => l.id === activeLayerId).group.clearLayers();
-                document.getElementById('measure-display').innerHTML = "Vidé.";
-            }
-        }
-
+        function clearActiveLayer() { if(confirm("Vider calque?")) layersData.find(l => l.id === activeLayerId).group.clearLayers(); }
         function exportAllLayers() {
             let fullExport = {};
-            layersData.forEach(l => {
-                fullExport[l.name] = l.group.toGeoJSON();
-            });
+            layersData.forEach(l => { fullExport[l.name] = l.group.toGeoJSON(); });
             const blob = new Blob([JSON.stringify(fullExport)], {type: 'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = 'export_complet_calques.json'; a.click();
+            a.download = 'export_plan.json'; a.click();
         }
-
-        // Import CSV simplifié (vers calque actif)
-        document.getElementById('sig-import').onchange = function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                let gj;
-                try {
-                    if (file.name.endsWith('.csv')) {
-                        // Logique CSV basique déjà implémentée précédemment
-                        alert("Import CSV vers calque actif...");
-                    } else {
-                        gj = JSON.parse(ev.target.result);
-                        const activeGroup = layersData.find(l => l.id === activeLayerId).group;
-                        L.geoJSON(gj, { onEachFeature: (f, layer) => activeGroup.addLayer(layer) });
-                    }
-                } catch(e) { alert("Format non supporté"); }
-            };
-            reader.readAsText(file);
-        };
     </script>
 </body>
 </html>
