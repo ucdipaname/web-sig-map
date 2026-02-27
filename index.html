@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Mesure de Surface</title>
+    <title>Géo-Outil Pro - Mesures Précises</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -34,10 +34,9 @@
         
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #ddd; }
-        .area-highlight { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
+        .measure-highlight { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
         
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .btn-gps { background: var(--onBackgroundSecondary); }
         .btn-accent { background: var(--accent); }
     </style>
 </head>
@@ -45,29 +44,27 @@
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse pour mesurer..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: 10 rue de la Paix, Paris)..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
 
     <div id="container">
         <aside id="sidebar">
-            <button class="btn btn-gps" onclick="locateUser()"><i class="fa-solid fa-location-crosshairs"></i> Ma position</button>
-
             <div class="card">
-                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures</h3>
-                <div id="area-display" class="info-box">Tracez un polygone pour voir sa surface.</div>
+                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures Actives</h3>
+                <div id="measure-display" class="info-box">Utilisez les outils à droite pour tracer.</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-location-dot"></i> Point sélectionné</h3>
-                <div id="address-display" class="info-box">--</div>
+                <h3><i class="fa-solid fa-location-dot"></i> Dernier Point</h3>
+                <div id="address-display" class="info-box">Cliquez sur la carte</div>
                 <div id="coords-display" class="info-box">Lat: --, Lon: --</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-palette"></i> Couleur</h3>
-                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none;">
+                <h3><i class="fa-solid fa-palette"></i> Couleur du tracé</h3>
+                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none; background: none;">
             </div>
 
             <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
@@ -80,6 +77,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
+        // --- 1. CONFIGURATION CARTE ---
         const map = L.map('map').setView([46.6, 2.2], 6);
         const drawnItems = new L.FeatureGroup().addTo(map);
 
@@ -90,7 +88,7 @@
         let searchMarker = null;
         let currentColor = "#0070F6";
 
-        // --- RECHERCHE ---
+        // --- 2. RECHERCHE D'ADRESSE ---
         const searchInput = document.getElementById('search-input');
         const searchResults = document.getElementById('search-results');
 
@@ -116,22 +114,46 @@
                 });
         });
 
-        // --- FONCTION DE CALCUL DE SURFACE ---
-        function formatArea(layer) {
-            const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-            let output;
-            if (area > 10000) {
-                output = (area / 1000000).toFixed(3) + " km²";
-            } else {
-                output = area.toFixed(2) + " m²";
+        // --- 3. LOGIQUE DE MESURE ---
+        function calculateMeasurements(layer) {
+            let resultHtml = "";
+
+            // Calcul de distance (Polyline)
+            if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                const latlngs = layer.getLatLngs();
+                let distance = 0;
+                for (let i = 0; i < latlngs.length - 1; i++) {
+                    distance += latlngs[i].distanceTo(latlngs[i+1]);
+                }
+                const distStr = distance > 1000 ? (distance/1000).toFixed(2) + " km" : distance.toFixed(1) + " m";
+                resultHtml = `Longueur : <span class="measure-highlight">${distStr}</span>`;
+                layer.bindPopup(resultHtml).openPopup();
             }
-            return output;
+
+            // Calcul de surface (Polygon)
+            if (layer instanceof L.Polygon) {
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                const areaStr = area > 10000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(1) + " m²";
+                resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span>`;
+                layer.bindPopup(resultHtml).openPopup();
+            }
+
+            if (resultHtml) {
+                document.getElementById('measure-display').innerHTML = resultHtml;
+            }
         }
 
-        // --- DESSIN ET MESURE ---
+        // --- 4. OUTILS DE DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
-            draw: { circle: false, circlemarker: false, marker: true }
+            draw: { 
+                circle: false, 
+                circlemarker: false, 
+                marker: true,
+                polyline: { shapeOptions: { color: currentColor } },
+                polygon: { shapeOptions: { color: currentColor } },
+                rectangle: { shapeOptions: { color: currentColor } }
+            }
         });
         map.addControl(drawControl);
 
@@ -139,19 +161,20 @@
             const layer = e.layer;
             layer.setStyle({ color: currentColor, fillOpacity: 0.5 });
             drawnItems.addLayer(layer);
-
-            // Si c'est un polygone ou un rectangle, on calcule la surface
-            if (layer instanceof L.Polygon) {
-                const area = formatArea(layer);
-                document.getElementById('area-display').innerHTML = `Surface : <span class="area-highlight">${area}</span>`;
-                layer.bindPopup(`Surface : ${area}`).openPopup();
-            }
+            calculateMeasurements(layer);
         });
 
-        // Mise à jour de la couleur
-        document.getElementById('color-picker').onchange = (e) => currentColor = e.target.value;
+        document.getElementById('color-picker').onchange = (e) => {
+            currentColor = e.target.value;
+            // Mise à jour dynamique des réglages du pinceau
+            drawControl.setDrawingOptions({
+                polyline: { shapeOptions: { color: currentColor } },
+                polygon: { shapeOptions: { color: currentColor } },
+                rectangle: { shapeOptions: { color: currentColor } }
+            });
+        };
 
-        // --- AUTRES FONCTIONS ---
+        // --- 5. UTILITAIRES ---
         function updateMapPoint(lat, lon, label) {
             if (searchMarker) map.removeLayer(searchMarker);
             searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
@@ -159,15 +182,26 @@
             document.getElementById('coords-display').textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
         }
 
-        function locateUser() { map.locate({setView: true, maxZoom: 16}); }
-        map.on('locationfound', (e) => updateMapPoint(e.latlng.lat, e.latlng.lng, "Ma position"));
+        map.on('click', function(e) {
+            if (e.originalEvent.target.id !== "map") return; // Évite les clics sur contrôles
+            const {lat, lng} = e.latlng;
+            fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`)
+                .then(r => r.json()).then(data => {
+                    const label = data.features[0] ? data.features[0].properties.label : "Adresse inconnue";
+                    updateMapPoint(lat, lng, label);
+                });
+        });
 
         function exportData() {
             const data = drawnItems.toGeoJSON();
+            if (data.features.length === 0) {
+                alert("Rien à exporter. Dessinez d'abord un élément.");
+                return;
+            }
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'mesures.geojson';
+            a.download = 'export_geotool.geojson';
             a.click();
         }
     </script>
