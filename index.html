@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Version Optimisée</title>
+    <title>Géo-Outil Pro - Mesure de Surface</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -21,30 +21,23 @@
         }
 
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; color: var(--onBackground); overflow: hidden; }
-        
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; flex-shrink: 0; }
         .search-container { width: 70%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-        
-        #search-results { 
-            position: absolute; top: 50px; left: 0; right: 0; 
-            background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            max-height: 250px; overflow-y: auto; display: none; z-index: 3000;
-        }
+        #search-results { position: absolute; top: 50px; left: 0; right: 0; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-height: 250px; overflow-y: auto; display: none; z-index: 3000; }
         .result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; color: #333; }
         .result-item:hover { background: var(--onBackgroundExtraLight); color: var(--accent); }
 
-        #container { display: flex; flex: 1; overflow: hidden; background: var(--background); }
+        #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: var(--onBackgroundExtraLight); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; }
         
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #ddd; word-break: break-all; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #ddd; }
+        .area-highlight { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
         
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity 0.2s; }
-        .btn:hover { opacity: 0.9; }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-gps { background: var(--onBackgroundSecondary); }
-        .btn-export { background: #05c46b; }
         .btn-accent { background: var(--accent); }
     </style>
 </head>
@@ -52,7 +45,7 @@
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une rue, une ville ou une adresse..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse pour mesurer..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -62,167 +55,122 @@
             <button class="btn btn-gps" onclick="locateUser()"><i class="fa-solid fa-location-crosshairs"></i> Ma position</button>
 
             <div class="card">
+                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures</h3>
+                <div id="area-display" class="info-box">Tracez un polygone pour voir sa surface.</div>
+            </div>
+
+            <div class="card">
                 <h3><i class="fa-solid fa-location-dot"></i> Point sélectionné</h3>
-                <div id="address-display" class="info-box">Cliquez sur la carte ou recherchez une adresse</div>
+                <div id="address-display" class="info-box">--</div>
                 <div id="coords-display" class="info-box">Lat: --, Lon: --</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-palette"></i> Couleur de dessin</h3>
-                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none; background:none;">
+                <h3><i class="fa-solid fa-palette"></i> Couleur</h3>
+                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none;">
             </div>
 
-            <div class="card">
-                <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
-            </div>
+            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
         </aside>
         <main id="map"></main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
-        // --- 1. Initialisation de la carte ---
         const map = L.map('map').setView([46.6, 2.2], 6);
         const drawnItems = new L.FeatureGroup().addTo(map);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap'
         }).addTo(map);
 
         let searchMarker = null;
         let currentColor = "#0070F6";
 
-        // --- 2. Moteur de Recherche (API BAN) ---
+        // --- RECHERCHE ---
         const searchInput = document.getElementById('search-input');
         const searchResults = document.getElementById('search-results');
 
         searchInput.addEventListener('input', function() {
-            const query = this.value.trim();
-            if (query.length < 3) { 
-                searchResults.style.display = 'none'; 
-                return; 
-            }
-            
-            fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=6`)
-                .then(r => r.json())
-                .then(data => {
+            if (this.value.length < 3) { searchResults.style.display = 'none'; return; }
+            fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`)
+                .then(r => r.json()).then(data => {
                     searchResults.innerHTML = '';
-                    if (data.features && data.features.length > 0) {
-                        data.features.forEach(f => {
-                            const div = document.createElement('div');
-                            div.className = 'result-item';
-                            div.textContent = f.properties.label;
-                            div.onclick = (e) => {
-                                e.stopPropagation(); // Empêche la fermeture immédiate
-                                const [lon, lat] = f.geometry.coordinates;
-                                
-                                // Positionnement exact
-                                updateMapPoint(lat, lon, f.properties.label);
-                                map.setView([lat, lon], 18); // Zoom précis sur la rue
-                                
-                                // UI Update
-                                searchInput.value = f.properties.label;
-                                searchResults.style.display = 'none';
-                            };
-                            searchResults.appendChild(div);
-                        });
-                        searchResults.style.display = 'block';
-                    } else {
-                        searchResults.style.display = 'none';
-                    }
-                })
-                .catch(err => console.error("Erreur de recherche:", err));
-        });
-
-        // Fermer les résultats si on clique ailleurs
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.search-container')) {
-                searchResults.style.display = 'none';
-            }
-        });
-
-        // --- 3. Géocodage inverse (au clic sur la carte) ---
-        map.on('click', function(e) {
-            const {lat, lng} = e.latlng;
-            fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`)
-                .then(r => r.json())
-                .then(data => {
-                    const label = data.features[0] ? data.features[0].properties.label : "Adresse inconnue";
-                    updateMapPoint(lat, lng, label);
+                    data.features.forEach(f => {
+                        const div = document.createElement('div');
+                        div.className = 'result-item';
+                        div.textContent = f.properties.label;
+                        div.onclick = () => {
+                            const [lon, lat] = f.geometry.coordinates;
+                            updateMapPoint(lat, lon, f.properties.label);
+                            map.setView([lat, lon], 18);
+                            searchResults.style.display = 'none';
+                            searchInput.value = f.properties.label;
+                        };
+                        searchResults.appendChild(div);
+                    });
+                    searchResults.style.display = 'block';
                 });
         });
 
-        // Fonction universelle pour mettre à jour le point sur la carte
-        function updateMapPoint(lat, lon, label) {
-            if (searchMarker) map.removeLayer(searchMarker);
-            
-            searchMarker = L.marker([lat, lon]).addTo(map)
-                .bindPopup(`<b>${label}</b>`)
-                .openPopup();
-
-            document.getElementById('address-display').textContent = label;
-            document.getElementById('coords-display').textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
+        // --- FONCTION DE CALCUL DE SURFACE ---
+        function formatArea(layer) {
+            const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+            let output;
+            if (area > 10000) {
+                output = (area / 1000000).toFixed(3) + " km²";
+            } else {
+                output = area.toFixed(2) + " m²";
+            }
+            return output;
         }
 
-        // --- 4. Géolocalisation ---
-        function locateUser() {
-            map.locate({setView: true, maxZoom: 16});
-        }
-        
-        map.on('locationfound', (e) => {
-            updateMapPoint(e.latlng.lat, e.latlng.lng, "Votre position actuelle");
-        });
-
-        map.on('locationerror', () => {
-            alert("La géolocalisation a échoué.");
-        });
-
-        // --- 5. Outils de dessin ---
+        // --- DESSIN ET MESURE ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
-            draw: { 
-                polygon: { shapeOptions: { color: currentColor } }, 
-                polyline: { shapeOptions: { color: currentColor } }, 
-                rectangle: { shapeOptions: { color: currentColor } }, 
-                circle: false, 
-                marker: true 
-            }
+            draw: { circle: false, circlemarker: false, marker: true }
         });
         map.addControl(drawControl);
 
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
-            if (layer.setStyle) {
-                layer.setStyle({ color: currentColor, fillOpacity: 0.4 });
-            }
+            layer.setStyle({ color: currentColor, fillOpacity: 0.5 });
             drawnItems.addLayer(layer);
+
+            // Si c'est un polygone ou un rectangle, on calcule la surface
+            if (layer instanceof L.Polygon) {
+                const area = formatArea(layer);
+                document.getElementById('area-display').innerHTML = `Surface : <span class="area-highlight">${area}</span>`;
+                layer.bindPopup(`Surface : ${area}`).openPopup();
+            }
         });
 
-        document.getElementById('color-picker').onchange = (e) => {
-            currentColor = e.target.value;
-            // On met à jour les options du contrôleur de dessin pour les prochains tracés
-            drawControl.setDrawingOptions({
-                polygon: { shapeOptions: { color: currentColor } },
-                polyline: { shapeOptions: { color: currentColor } },
-                rectangle: { shapeOptions: { color: currentColor } }
-            });
-        };
+        // Mise à jour de la couleur
+        document.getElementById('color-picker').onchange = (e) => currentColor = e.target.value;
 
-        // --- 6. Exportation ---
+        // --- AUTRES FONCTIONS ---
+        function updateMapPoint(lat, lon, label) {
+            if (searchMarker) map.removeLayer(searchMarker);
+            searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
+            document.getElementById('address-display').textContent = label;
+            document.getElementById('coords-display').textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
+        }
+
+        function locateUser() { map.locate({setView: true, maxZoom: 16}); }
+        map.on('locationfound', (e) => updateMapPoint(e.latlng.lat, e.latlng.lng, "Ma position"));
+
         function exportData() {
             const data = drawnItems.toGeoJSON();
-            if (data.features.length === 0) {
-                alert("Aucun dessin à exporter !");
-                return;
-            }
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'cartographie_export.geojson';
+            a.download = 'mesures.geojson';
             a.click();
         }
     </script>
 </body>
 </html>
+     
