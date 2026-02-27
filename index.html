@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Multi-Vues & Import CSV</title>
+    <title>Géo-Outil Pro - Expert SIG & Satellite</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -25,8 +25,8 @@
         .btn-danger { background: #e74c3c; }
         .file-label { display: block; background: #fff; padding: 15px; border-radius: 6px; border: 2px dashed #bbb; text-align: center; cursor: pointer; font-weight: bold; color: #666; }
         input[type="file"] { display: none; }
-        #loader-container { display: none; margin-top: 10px; }
-        .progress-bg { width: 100%; background: #ddd; height: 8px; border-radius: 4px; overflow: hidden; }
+        #loader-container { display: none; margin-top: 10px; padding: 10px; background: #fff; border-radius: 5px; border: 1px solid #eee; }
+        .progress-bg { width: 100%; background: #ddd; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 5px; }
         #progress-bar { width: 0%; height: 100%; background: var(--success); transition: width 0.2s; }
     </style>
 </head>
@@ -48,10 +48,10 @@
 
             <div class="card">
                 <h3><i class="fa-solid fa-file-import"></i> Import SIG & CSV</h3>
-                <label class="file-label" for="sig-import">Glisser GeoJSON, ZIP ou CSV</label>
+                <label class="file-label" for="sig-import">GeoJSON, ZIP (SHP) ou CSV</label>
                 <input type="file" id="sig-import" accept=".geojson,.json,.zip,.csv">
                 <div id="loader-container">
-                    <div style="font-size: 0.75rem; margin-bottom: 3px;">Traitement CSV : <span id="progress-percent">0</span>%</div>
+                    <div style="font-size: 0.75rem; font-weight: bold;">Traitement : <span id="progress-percent">0</span>%</div>
                     <div class="progress-bg"><div id="progress-bar"></div></div>
                 </div>
             </div>
@@ -72,27 +72,23 @@
         const EPSG2154 = "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
         const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-        // --- GESTION DES FONDS DE CARTE ---
+        // --- CONFIGURATION DES CARTES ---
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' });
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri Satellite' });
         const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' });
 
         const map = L.map('map', { 
             center: [48.8566, 2.3522], 
             zoom: 12, 
-            layers: [osm] // Fond par défaut
+            layers: [satellite] // Vue Satellite par défaut
         });
 
-        const baseMaps = {
-            "Plan (OSM)": osm,
-            "Vue Aérienne": satellite,
-            "Vue Allégée": light
-        };
-        L.control.layers(baseMaps).addTo(map);
+        L.control.layers({ "Vue Satellite": satellite, "Plan OSM": osm, "Vue Claire": light }).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
         let currentRatio = 3;
 
+        // --- CALCULS ---
         function updateMeasurements(layer) {
             if (layer instanceof L.Polygon) {
                 const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
@@ -103,26 +99,27 @@
             }
         }
 
-        // Détection et conversion de projection intelligente
+        // --- PROJECTIONS ---
         function convertGj(gj) {
             if (!gj || !gj.features || gj.features.length === 0) return gj;
             let first = gj.features[0].geometry.coordinates;
             while(Array.isArray(first[0])) first = first[0];
             
-            // Si la coordonnée est > 180, c'est probablement du Lambert (EPSG:2154)
-            if (Math.abs(first[0]) > 180) { 
+            if (Math.abs(first[0]) > 180) { // Lambert détecté
                 const transform = (c) => (typeof c[0] === 'number') ? proj4(EPSG2154, 'WGS84', c) : c.map(transform);
                 gj.features.forEach(f => { if(f.geometry) f.geometry.coordinates = transform(f.geometry.coordinates); });
             }
             return gj;
         }
 
+        // --- TRAITEMENT CSV ---
         async function csvToGeoJSON(csvText) {
-            const lines = csvText.split('\n').filter(l => l.trim() !== "");
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const lines = csvText.replace(/\r/g, "").split('\n').filter(l => l.trim() !== "");
+            const sep = lines[0].includes(';') ? ';' : ',';
+            const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
             
             const latIdx = headers.findIndex(h => h.includes('lat'));
-            const lonIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
+            const lonIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng') || h.includes('x'));
             const addrIdx = headers.findIndex(h => h.includes('adr') || h.includes('lieu'));
 
             const features = [];
@@ -131,21 +128,23 @@
             loader.style.display = 'block';
 
             for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split(',');
+                const cols = lines[i].split(sep).map(c => c.trim());
+                if (cols.length < headers.length) continue;
+
                 const progress = Math.round((i / lines.length) * 100);
                 pBar.style.width = progress + '%';
                 document.getElementById('progress-percent').innerText = progress;
 
-                // Si coordonnée GPS directe (WGS84)
-                if (latIdx !== -1 && lonIdx !== -1 && cols[latIdx]) {
+                let lat = latIdx !== -1 ? parseFloat(cols[latIdx].replace(',', '.')) : null;
+                let lon = lonIdx !== -1 ? parseFloat(cols[lonIdx].replace(',', '.')) : null;
+
+                if (!isNaN(lat) && !isNaN(lon) && lat !== null) {
                     features.push({
                         type: "Feature",
-                        geometry: { type: "Point", coordinates: [parseFloat(cols[lonIdx]), parseFloat(cols[latIdx])] },
-                        properties: { label: cols[addrIdx] || "Point" }
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: { label: cols[addrIdx] || `Ligne ${i}` }
                     });
-                } 
-                // Sinon Géocodage
-                else if (addrIdx !== -1 && cols[addrIdx]) {
+                } else if (addrIdx !== -1 && cols[addrIdx]) {
                     try {
                         await sleep(150);
                         const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[addrIdx])}&limit=1`);
@@ -158,6 +157,7 @@
             return { type: "FeatureCollection", features: features };
         }
 
+        // --- IMPORTS ---
         document.getElementById('sig-import').onchange = function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -172,7 +172,7 @@
                     
                     if (Array.isArray(gj)) gj.forEach(data => processLayer(data));
                     else processLayer(gj);
-                } catch (err) { alert("Erreur: " + err.message); }
+                } catch (err) { alert("Erreur fichier: " + err.message); }
             };
 
             if (file.name.endsWith('.zip')) reader.readAsArrayBuffer(file);
@@ -182,7 +182,7 @@
         function processLayer(data) {
             const cleanGj = convertGj(data);
             const geoLayer = L.geoJSON(cleanGj, {
-                pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius: 6, fillColor: "#0070F6", color: "#fff", weight: 1, fillOpacity: 0.8}),
+                pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius: 7, fillColor: "#0070F6", color: "#fff", weight: 2, fillOpacity: 0.9}),
                 onEachFeature: (f, l) => {
                     drawnItems.addLayer(l);
                     l.on('click', () => {
@@ -194,9 +194,10 @@
             if (geoLayer.getBounds().isValid()) map.fitBounds(geoLayer.getBounds());
         }
 
+        // --- DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
-            draw: { circle: false, marker: false, circlemarker: false }
+            draw: { circle: false, marker: false, circlemarker: false, polyline: false }
         });
         map.addControl(drawControl);
 
@@ -209,11 +210,15 @@
             drawnItems.eachLayer(l => { if (l instanceof L.Polygon) updateMeasurements(l); });
         };
 
-        function clearAll() { if(confirm("Vider?")) drawnItems.clearLayers(); }
+        function clearAll() { if(confirm("Voulez-vous tout supprimer ?")) drawnItems.clearLayers(); }
+        
         function exportData() {
-            const blob = new Blob([JSON.stringify(drawnItems.toGeoJSON())], {type: 'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = 'export.geojson'; a.click();
+            const data = JSON.stringify(drawnItems.toGeoJSON());
+            const blob = new Blob([data], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'export_geo.geojson';
+            a.click();
         }
     </script>
 </body>
