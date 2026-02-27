@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité Pro - Version Finale</title>
+    <title>Géo-Outil Sécurité Pro - Fix Calcul Dynamique</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -34,21 +34,14 @@
         .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; }
         .unit-brav span { transform: rotate(-45deg); }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
-        
         .text-annotation { background: transparent; border: none; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; font-size: 14px; white-space: nowrap; }
 
-        /* Légende */
-        #map-legend { position: absolute; bottom: 20px; left: 20px; background: white; padding: 10px; border-radius: 5px; border: 1px solid #ccc; z-index: 2000; font-size: 11px; display: none; }
-        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
-        .legend-color { width: 15px; height: 15px; margin-right: 8px; border: 1px solid #000; }
-
-        /* UI Sidebar */
+        /* Interface Sidebar */
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
         .layer-active { background: #e3f2fd; border-color: #0070F6; font-weight: bold; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; }
         .btn-accent { background: var(--accent); }
-        .btn-export { background: #27ae60; }
         .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; margin-top: 5px; color: #0056b3; font-size: 0.9rem; }
 
         #export-frame {
@@ -73,12 +66,12 @@
             <div class="card">
                 <h3><i class="fa-solid fa-camera"></i> Mise en page</h3>
                 <button class="btn btn-accent" onclick="toggleFrame()" style="background:#f39c12">Cadre Paysage 60x40</button>
-                <button class="btn btn-export" onclick="exportToImage()" style="margin-top:10px;">Télécharger JPEG</button>
+                <button class="btn btn-export" onclick="exportToImage()" style="background:#27ae60; margin-top:10px;">Télécharger JPEG</button>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures & Infos</h3>
-                <div id="measure-display" class="info-box">Tracez pour mesurer.</div>
+                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures Dynamiques</h3>
+                <div id="measure-display" class="info-box">Tracez ou modifiez une zone.</div>
                 <div style="margin-top:10px;">
                     <small>Ratio : <span id="ratio-val">3</span> pers/m²</small>
                     <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%;">
@@ -111,7 +104,6 @@
 
         <main id="map">
             <div id="export-frame"></div>
-            <div id="map-legend"></div>
             <div id="picto-box">
                 <div class="picto-item" id="btn-crs" style="background:#0000FF" onclick="selectUnit(event, 'CRS')">CRS</div>
                 <div class="picto-item" id="btn-gm" style="background:#5D4037" onclick="selectUnit(event, 'GM')">GM</div>
@@ -127,7 +119,7 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
-        // --- 1. SETUP ---
+        // --- INITIALISATION ---
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { crossOrigin: 'Anonymous' });
         const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { crossOrigin: 'Anonymous' });
         const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [satellite] });
@@ -136,10 +128,11 @@
         let layersData = [];
         let activeLayerId = null;
         let selectedUnitType = null;
+        let lastSelectedShape = null; // Pour le rafraîchissement dynamique
 
         L.DomEvent.disableClickPropagation(document.getElementById('picto-box'));
 
-        // --- 2. GESTION CALQUES & VISIBILITÉ ---
+        // --- GESTION CALQUES ---
         function addNewLayer(name) {
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
@@ -173,27 +166,54 @@
                 draw: { marker: false, circle: false, circlemarker: false, polyline: true, polygon: true } 
             });
             map.addControl(window.dc);
-            updateLegend();
         }
 
-        // --- 3. DESSIN & MESURES ---
+        // --- FONCTION DE CALCUL (REFRAICHISSEMENT) ---
+        function calculateMeasurements(layer) {
+            if (!layer) return;
+            const ratio = document.getElementById('ratio-slider').value;
+            document.getElementById('ratio-val').innerText = ratio;
+
+            if (layer instanceof L.Polygon) {
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                const capacity = Math.round(area * ratio);
+                document.getElementById('measure-display').innerHTML = 
+                    `Surface : <b>${area.toFixed(0)} m²</b><br>Capacité : <b>${capacity.toLocaleString()} pers.</b>`;
+            } else if (layer instanceof L.Polyline) {
+                const dist = L.GeometryUtil.accumulatedDistance(layer.getLatLngs());
+                document.getElementById('measure-display').innerHTML = 
+                    `Distance : <b>${dist.toFixed(1)} m</b>`;
+            }
+        }
+
+        // --- LISTENERS DESSIN ---
         map.on(L.Draw.Event.CREATED, (e) => {
             const layer = e.layer;
             const color = document.getElementById('style-color').value;
             layer.setStyle({ color: color, weight: 3, fillColor: color, fillOpacity: 0.3 });
+            
             layersData.find(l => l.id === activeLayerId).group.addLayer(layer);
+            lastSelectedShape = layer;
+            calculateMeasurements(layer);
 
-            if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                const ratio = document.getElementById('ratio-slider').value;
-                document.getElementById('measure-display').innerHTML = `Surface : ${area.toFixed(0)} m²<br>Capacité : ${Math.round(area * ratio)} pers.`;
-            } else if (layer instanceof L.Polyline) {
-                const dist = L.GeometryUtil.accumulatedDistance(layer.getLatLngs());
-                document.getElementById('measure-display').innerHTML = `Distance : ${dist.toFixed(1)} m`;
-            }
+            // Permet de recalculer si on clique sur la forme plus tard
+            layer.on('click', () => { lastSelectedShape = layer; calculateMeasurements(layer); });
         });
 
-        // --- 4. PICTOS & TEXTE ---
+        // Mise à jour lors de l'édition (tirer sur les points)
+        map.on(L.Draw.Event.EDITED, (e) => {
+            e.layers.eachLayer((layer) => {
+                lastSelectedShape = layer;
+                calculateMeasurements(layer);
+            });
+        });
+
+        // Mise à jour lors du changement de ratio
+        document.getElementById('ratio-slider').oninput = () => {
+            calculateMeasurements(lastSelectedShape);
+        };
+
+        // --- PICTOS & TEXTE ---
         function selectUnit(event, type) {
             if (event) event.stopPropagation();
             selectedUnitType = type;
@@ -228,51 +248,7 @@
             map.getContainer().style.cursor = '';
         });
 
-        // --- 5. LÉGENDE AUTOMATIQUE ---
-        function updateLegend() {
-            const leg = document.getElementById('map-legend');
-            leg.innerHTML = '<b>Légende</b><br>';
-            const types = [
-                {n:'CRS', c:'blue'}, {n:'GM', c:'#5D4037'}, {n:'CIE', c:'red'}, {n:'BRAV', c:'green'}
-            ];
-            types.forEach(t => {
-                leg.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${t.c}"></div>${t.n}</div>`;
-            });
-            leg.style.display = 'block';
-        }
-
-        // --- 6. IMPORT CSV FIX ---
-        document.getElementById('sig-import').onchange = function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            const group = layersData.find(l => l.id === activeLayerId).group;
-
-            reader.onload = async (ev) => {
-                if (file.name.endsWith('.csv')) {
-                    const lines = ev.target.result.split(/\r?\n/);
-                    const sep = ev.target.result.includes(';') ? ';' : ',';
-                    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
-                    const latIdx = headers.findIndex(h => h.includes('lat'));
-                    const lngIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
-
-                    lines.slice(1).forEach(line => {
-                        const cols = line.split(sep);
-                        if (cols.length > latIdx && !isNaN(parseFloat(cols[latIdx]))) {
-                            L.marker([parseFloat(cols[latIdx]), parseFloat(cols[lngIdx])]).addTo(group)
-                             .bindPopup(cols.join(' '));
-                        }
-                    });
-                } else if (file.name.endsWith('.zip')) {
-                    const geo = await shp(ev.target.result);
-                    L.geoJSON(geo).addTo(group);
-                } else {
-                    L.geoJSON(JSON.parse(ev.target.result)).addTo(group);
-                }
-            };
-            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file); else reader.readAsText(file);
-        };
-
-        // --- 7. EXPORTS ---
+        // --- EXPORTS & RECHERCHE ---
         function toggleFrame() {
             const f = document.getElementById('export-frame');
             f.style.display = (f.style.display === 'block') ? 'none' : 'block';
@@ -283,7 +259,7 @@
             document.getElementById('picto-box').style.display = 'none';
             html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
                 const link = document.createElement('a');
-                link.download = 'plan_securite_pro.jpg';
+                link.download = 'plan_securite.jpg';
                 link.href = canvas.toDataURL('image/jpeg', 0.9);
                 link.click();
                 document.getElementById('picto-box').style.display = 'flex';
@@ -292,12 +268,9 @@
 
         function exportAll() {
             let d = {}; layersData.forEach(l => d[l.name] = l.group.toGeoJSON());
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'projet_complet.json'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'projet.json'; a.click();
         }
 
-        function promptNewLayer() { let n = prompt("Nom du calque ?"); if(n) addNewLayer(n); }
-
-        // --- RECHERCHE ---
         document.getElementById('search-input').oninput = async function() {
             if(this.value.length < 3) return;
             const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`);
@@ -307,8 +280,8 @@
             res.style.display = 'block';
         };
 
+        function promptNewLayer() { let n = prompt("Nom ?"); if(n) addNewLayer(n); }
         addNewLayer("Secteur Initial");
     </script>
 </body>
 </html>
-
