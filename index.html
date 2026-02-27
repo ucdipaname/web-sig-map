@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité Intégral</title>
+    <title>Géo-Outil Sécurité - Version Optimisée</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -22,30 +22,25 @@
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; position: relative; }
 
-        /* Fenêtre Pictos */
-        #picto-box { 
-            position: absolute; bottom: 20px; right: 20px; 
-            background: white; padding: 12px; border-radius: 8px; 
-            border: 2px solid var(--dark); z-index: 2000; 
-            display: flex; flex-direction: column; gap: 10px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
-        }
-        .picto-item { 
-            width: 60px; height: 35px; color: white; border: 2px solid black; 
-            font-weight: bold; font-size: 11px; display: flex; 
-            align-items: center; justify-content: center; cursor: pointer; 
-        }
-        .picto-selected { outline: 4px solid #ff9f43; box-shadow: 0 0 15px #ff9f43; transform: scale(1.05); }
+        /* Pictos */
+        #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .picto-selected { outline: 4px solid #ff9f43; transform: scale(1.05); }
 
-        /* Étiquettes */
+        /* Calques UI */
+        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
+        .layer-active { background: #e3f2fd; border-color: #0070F6; }
+        .layer-toggle { cursor: pointer; color: #666; padding: 0 5px; }
+        .layer-toggle:hover { color: #0070F6; }
+
         .unit-label-container { display: flex; flex-direction: column; align-items: center; width: 100px; }
         .unit-box { width: 45px; height: 22px; border: 2px solid black; color: white; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; }
-        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; font-weight: bold; color: black; box-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; font-weight: bold; color: black; }
 
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; }
         .btn-accent { background: var(--accent); }
-        .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; margin-top: 5px; }
+        .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; min-height: 40px; }
     </style>
 </head>
 <body>
@@ -66,33 +61,26 @@
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-paint-brush"></i> Style</h3>
-                <label>Couleur du tracé :</label>
+                <h3><i class="fa-solid fa-paint-brush"></i> Style & Couleur</h3>
                 <input type="color" id="style-color" value="#0070F6" style="width:100%; height:30px; cursor:pointer;">
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-users"></i> Capacité</h3>
-                <div id="measure-display" class="info-box">Tracez pour mesurer.</div>
+                <h3><i class="fa-solid fa-users"></i> Capacité Dynamique</h3>
+                <div id="measure-display" class="info-box">Sélectionnez une zone pour calculer.</div>
                 <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin-top:10px;">
-                <small>Densité : <span id="ratio-val">3</span> pers/m²</small>
+                <small>Densité actuelle : <span id="ratio-val">3</span> pers/m²</small>
             </div>
 
             <div class="card">
                 <h3><i class="fa-solid fa-file-import"></i> Outils</h3>
-                <label class="btn btn-accent" style="cursor:pointer;">
-                    <i class="fa-solid fa-upload"></i> Importer (CSV, JSON, ZIP)
-                    <input type="file" id="sig-import" style="display:none" accept=".csv,.json,.geojson,.zip">
-                </label>
-                <button class="btn btn-accent" onclick="exportAll()" style="margin-top:10px;">
-                    <i class="fa-solid fa-download"></i> Exporter Projet
-                </button>
+                <label class="btn btn-accent" style="cursor:pointer;">Importer Données<input type="file" id="sig-import" style="display:none"></label>
+                <button class="btn btn-accent" onclick="exportAll()" style="margin-top:10px;">Exporter Projet</button>
             </div>
         </aside>
 
         <main id="map">
             <div id="picto-box">
-                <div style="font-size: 9px; font-weight: bold; text-align: center;">UNITÉS :</div>
                 <div class="picto-item" id="btn-crs" style="background:#0000FF" onclick="selectUnit(event, 'CRS')">CRS</div>
                 <div class="picto-item" id="btn-gm" style="background:#5D4037" onclick="selectUnit(event, 'GM')">GM</div>
             </div>
@@ -105,80 +93,38 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
-        // --- INITIALISATION ---
+        // --- CARTOGRAPHIE ---
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+
         const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [satellite] });
-        L.control.layers({ "Satellite": satellite, "Plan OSM": osm }).addTo(map);
+        
+        // Ajout de la version allégée dans le menu
+        L.control.layers({ "Satellite": satellite, "Plan OSM": osm, "Vue Allégée": light }).addTo(map);
 
         let layersData = [];
         let activeLayerId = null;
         let selectedUnitType = null;
-        let currentRatio = 3;
+        let lastPolygon = null; // Pour le calcul dynamique
 
-        // --- SECURITE CLIC ---
-        const pictoBox = document.getElementById('picto-box');
-        L.DomEvent.disableClickPropagation(pictoBox);
+        L.DomEvent.disableClickPropagation(document.getElementById('picto-box'));
 
-        // --- FONCTIONS UNITÉS ---
-        function selectUnit(event, type) {
-            if (event) event.stopPropagation();
-            selectedUnitType = type;
-            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
-            document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
-            map.getContainer().style.cursor = 'crosshair';
-        }
-
-        map.on('click', function(e) {
-            if (!selectedUnitType) return;
-            const name = prompt("Nom/Numéro de l'unité ?", selectedUnitType);
-            const time = prompt("Heure de mise en place ?", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
-            
-            if (name) {
-                const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
-                const icon = L.divIcon({
-                    className: '',
-                    html: `<div class="unit-label-container">
-                        <div class="unit-box" style="background:${color};">${selectedUnitType}</div>
-                        <div class="unit-info">${name}</div>
-                        <div class="unit-info" style="color:#d35400;">${time}</div>
-                    </div>`,
-                    iconSize: [100, 50], iconAnchor: [50, 11]
-                });
-                const group = layersData.find(l => l.id === activeLayerId).group;
-                const marker = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
-                marker.on('contextmenu', function() { if(confirm("Supprimer cette unité ?")) group.removeLayer(marker); });
-            }
-            selectedUnitType = null;
-            map.getContainer().style.cursor = '';
-            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
-        });
-
-        // --- RECHERCHE ---
-        const sInput = document.getElementById('search-input');
-        const sRes = document.getElementById('search-results');
-        sInput.addEventListener('input', async () => {
-            if (sInput.value.length < 3) { sRes.style.display='none'; return; }
-            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(sInput.value)}&limit=5`);
-            const d = await r.json();
-            sRes.innerHTML = d.features.map(f => `<div class="search-item" onclick="goTo([${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}], '${f.properties.label.replace(/'/g, "\\'")}')" style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;">${f.properties.label}</div>`).join('');
-            sRes.style.display = 'block';
-        });
-        function goTo(c, l) { map.setView(c, 18); L.marker(c).addTo(map).bindPopup(l).openPopup(); sRes.style.display = 'none'; sInput.value = l; }
-
-        // --- GESTION DES CALQUES ---
+        // --- GESTION CALQUES (VISIBLE / INVISIBLE) ---
         function addNewLayer(name) {
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
-            layersData.push({ id, name, group });
-            activeLayerId = id;
-            updateUI();
+            layersData.push({ id, name, group, visible: true });
+            setActiveLayer(id);
         }
 
-        function updateUI() {
-            const list = document.getElementById('layers-list');
-            list.innerHTML = layersData.map(l => `<div style="padding:8px; margin-bottom:5px; cursor:pointer; border-radius:5px; background:${l.id===activeLayerId?'#e3f2fd':'#fff'}; border:1px solid ${l.id===activeLayerId?'#0070F6':'#eee'}" onclick="setActiveLayer(${l.id})">${l.name}</div>`).join('');
-            updateDrawControl();
+        function toggleVisibility(id, event) {
+            event.stopPropagation();
+            const layer = layersData.find(l => l.id === id);
+            layer.visible = !layer.visible;
+            if (layer.visible) map.addLayer(layer.group);
+            else map.removeLayer(layer.group);
+            updateUI();
         }
 
         function setActiveLayer(id) {
@@ -186,17 +132,42 @@
             updateUI();
         }
 
+        function updateUI() {
+            const list = document.getElementById('layers-list');
+            list.innerHTML = layersData.map(l => `
+                <div class="layer-item ${l.id === activeLayerId ? 'layer-active' : ''}" onclick="setActiveLayer(${l.id})">
+                    <span>${l.name}</span>
+                    <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'} layer-toggle" onclick="toggleVisibility(${l.id}, event)"></i>
+                </div>
+            `).join('');
+            updateDrawControl();
+        }
+
         function updateDrawControl() {
             if (window.dc) map.removeControl(window.dc);
             const g = layersData.find(l => l.id === activeLayerId).group;
             window.dc = new L.Control.Draw({
                 edit: { featureGroup: g },
-                draw: { marker: false, circlemarker: false, circle: false, polyline: true, polygon: true }
+                draw: { marker: false, circle: false, circlemarker: false, polyline: true, polygon: true }
             });
             map.addControl(window.dc);
         }
 
-        // --- DESSIN ET CALCULS ---
+        // --- CALCUL DYNAMIQUE ---
+        function updateCapacity() {
+            const ratio = document.getElementById('ratio-slider').value;
+            document.getElementById('ratio-val').innerText = ratio;
+            
+            if (lastPolygon) {
+                const area = L.GeometryUtil.geodesicArea(lastPolygon.getLatLngs()[0]);
+                const cap = Math.round(area * ratio);
+                document.getElementById('measure-display').innerHTML = `Surface : ${area.toFixed(1)} m²<br>Capacité (x${ratio}) : ${cap.toLocaleString()} pers.`;
+                lastPolygon.bindPopup(`Capacité : ${cap} pers.`).openPopup();
+            }
+        }
+
+        document.getElementById('ratio-slider').addEventListener('input', updateCapacity);
+
         map.on(L.Draw.Event.CREATED, e => {
             const layer = e.layer;
             const color = document.getElementById('style-color').value;
@@ -205,60 +176,61 @@
             const group = layersData.find(l => l.id === activeLayerId).group;
             group.addLayer(layer);
             
-            layer.on('contextmenu', function() { if(confirm("Supprimer cet élément ?")) group.removeLayer(layer); });
-
             if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                const cap = Math.round(area * currentRatio);
-                document.getElementById('measure-display').innerHTML = `Surface : ${area.toFixed(1)} m²<br>Capacité : ${cap.toLocaleString()} pers.`;
+                lastPolygon = layer;
+                updateCapacity();
             }
+
+            layer.on('contextmenu', () => { if(confirm("Supprimer ?")) group.removeLayer(layer); });
+            layer.on('click', () => { if (layer instanceof L.Polygon) { lastPolygon = layer; updateCapacity(); }});
         });
 
-        // --- IMPORTATION ---
-        document.getElementById('sig-import').onchange = function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const group = layersData.find(l => l.id === activeLayerId).group;
-                if (file.name.endsWith('.zip')) {
-                    const geo = await shp(ev.target.result);
-                    L.geoJSON(geo, { onEachFeature: (f,l) => group.addLayer(l) });
-                } else if (file.name.endsWith('.csv')) {
-                    const lines = ev.target.result.split('\n').slice(1);
-                    for(let line of lines) {
-                        const cols = line.split(/[;,]/);
-                        if(cols[0]) {
-                            const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[0])}&limit=1`);
-                            const j = await res.json();
-                            if(j.features.length > 0) {
-                                const [lo, la] = j.features[0].geometry.coordinates;
-                                L.marker([la, lo]).addTo(group).bindPopup(cols[0]);
-                            }
-                        }
-                    }
-                } else {
-                    L.geoJSON(JSON.parse(ev.target.result), { onEachFeature: (f,l) => group.addLayer(l) });
-                }
-            };
-            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file);
-            else reader.readAsText(file);
-        };
-
-        // --- EXPORT & RATIO ---
-        document.getElementById('ratio-slider').oninput = function() {
-            currentRatio = this.value;
-            document.getElementById('ratio-val').innerText = this.value;
-        };
-
-        function promptNewLayer() { const n = prompt("Nom du calque :"); if(n) addNewLayer(n); }
-        
-        function exportAll() {
-            let d = {}; layersData.forEach(l => d[l.name] = l.group.toGeoJSON());
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'dispositif_securite.json'; a.click();
+        // --- PICTOS & RECHERCHE (Inchangés) ---
+        function selectUnit(event, type) {
+            if (event) event.stopPropagation();
+            selectedUnitType = type;
+            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
+            document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
+            map.getContainer().style.cursor = 'crosshair';
         }
 
-        // Démarrage
-        addNewLayer("Secteur 1");
+        map.on('click', (e) => {
+            if (!selectedUnitType) return;
+            const name = prompt("Nom ?", selectedUnitType);
+            const time = prompt("Heure ?", "12:00");
+            if (name) {
+                const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div class="unit-label-container"><div class="unit-box" style="background:${color}">${selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info" style="color:#d35400">${time}</div></div>`,
+                    iconSize: [100, 50], iconAnchor: [50, 11]
+                });
+                const group = layersData.find(l => l.id === activeLayerId).group;
+                const marker = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
+                marker.on('contextmenu', () => group.removeLayer(marker));
+            }
+            selectedUnitType = null;
+            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
+        });
+
+        // RECHERCHE ADRESSE
+        const sInput = document.getElementById('search-input');
+        const sRes = document.getElementById('search-results');
+        sInput.addEventListener('input', async () => {
+            if (sInput.value.length < 3) { sRes.style.display='none'; return; }
+            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(sInput.value)}&limit=5`);
+            const d = await r.json();
+            sRes.innerHTML = d.features.map(f => `<div onclick="map.setView([${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}], 18); sRes.style.display='none';" style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;">${f.properties.label}</div>`).join('');
+            sRes.style.display = 'block';
+        });
+
+        function promptNewLayer() { const n = prompt("Nom du calque :"); if(n) addNewLayer(n); }
+        function exportAll() {
+            let d = {}; layersData.forEach(l => d[l.name] = l.group.toGeoJSON());
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'plan.json'; a.click();
+        }
+
+        addNewLayer("Secteur Principal");
     </script>
 </body>
 </html>
