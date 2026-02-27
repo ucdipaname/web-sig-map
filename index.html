@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Mesures de Précision</title>
+    <title>Géo-Outil Pro - Expert Mesures</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -21,7 +21,6 @@
 
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; color: var(--onBackground); overflow: hidden; }
         
-        /* Barre de recherche */
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; flex-shrink: 0; }
         .search-container { width: 70%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
@@ -30,8 +29,6 @@
         .result-item:hover { background: var(--light-grey); color: var(--accent); }
 
         #container { display: flex; flex: 1; overflow: hidden; }
-        
-        /* Barre latérale sans bouton "Ma position" */
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; }
         
@@ -42,13 +39,14 @@
         .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
         .btn-accent { background: var(--accent); }
         .btn-accent:hover { background: #0056b3; }
+        .btn-danger { background: #e74c3c; margin-top: 5px; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse précise..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: 15 Rue de Rivoli, Paris)..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -57,11 +55,11 @@
         <aside id="sidebar">
             <div class="card">
                 <h3><i class="fa-solid fa-ruler-combined"></i> Mesures</h3>
-                <div id="measure-display" class="info-box">Tracez une ligne ou un polygone pour mesurer.</div>
+                <div id="measure-display" class="info-box">Sélectionnez un outil à droite pour mesurer.</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-location-dot"></i> Coordonnées</h3>
+                <h3><i class="fa-solid fa-location-dot"></i> Dernier clic</h3>
                 <div id="address-display" class="info-box">Cliquez sur la carte</div>
                 <div id="coords-display" class="info-box">Lat: --, Lon: --</div>
             </div>
@@ -71,9 +69,8 @@
                 <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none; background: none;">
             </div>
 
-            <button class="btn btn-accent" onclick="exportData()">
-                <i class="fa-solid fa-file-export"></i> Exporter GeoJSON
-            </button>
+            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
+            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Tout effacer</button>
         </aside>
 
         <main id="map"></main>
@@ -84,14 +81,35 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
-        // --- 1. CARTE ---
-        const map = L.map('map').setView([46.6, 2.2], 6);
-        const drawnItems = new L.FeatureGroup().addTo(map);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // --- 1. FONDS DE CARTE (BASES LAYERS) ---
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
-        }).addTo(map);
+        });
 
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © CARTO'
+        });
+
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+        });
+
+        // Initialisation de la carte avec la vue Plan par défaut
+        const map = L.map('map', {
+            center: [46.6, 2.2],
+            zoom: 6,
+            layers: [osm]
+        });
+
+        const baseMaps = {
+            "Plan (Standard)": osm,
+            "Plan (Allégé)": light,
+            "Vue Aérienne": satellite
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+
+        const drawnItems = new L.FeatureGroup().addTo(map);
         let searchMarker = null;
         let currentColor = "#0070F6";
 
@@ -121,7 +139,7 @@
                 });
         });
 
-        // --- 3. CALCULS ---
+        // --- 3. MESURES ---
         function calculateMeasurements(layer) {
             let resultHtml = "";
             if (layer instanceof L.Polygon) {
@@ -189,9 +207,16 @@
                 });
         });
 
+        function clearAll() {
+            if(confirm("Voulez-vous effacer tous vos tracés ?")) {
+                drawnItems.clearLayers();
+                document.getElementById('measure-display').innerHTML = "Tracez une ligne ou un polygone.";
+            }
+        }
+
         function exportData() {
             const data = drawnItems.toGeoJSON();
-            if (data.features.length === 0) return alert("Dessinez quelque chose d'abord.");
+            if (data.features.length === 0) return alert("Rien à exporter.");
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
