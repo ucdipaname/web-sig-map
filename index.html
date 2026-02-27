@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Expert - Précision & Suppression</title>
+    <title>Géo-Outil Expert - Correction Positionnement</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -16,20 +16,31 @@
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 5000; padding: 0 20px; }
         .search-container { width: 60%; position: relative; z-index: 6000; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; }
-        #search-results { position: absolute; top: 55px; left: 0; right: 0; background: white; border-radius: 8px; z-index: 9999; max-height: 250px; overflow-y: auto; display: none; border: 1px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .search-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #eee; }
+        #search-results { position: absolute; top: 55px; left: 0; right: 0; background: white; border-radius: 8px; z-index: 9999; max-height: 250px; overflow-y: auto; display: none; border: 1px solid #ccc; }
 
         #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; position: relative; }
 
-        #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
-        .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .picto-selected { outline: 3px solid #ff9f43; box-shadow: 0 0 10px #ff9f43; }
+        /* Fenêtre Pictos - Correction des interactions */
+        #picto-box { 
+            position: absolute; bottom: 20px; right: 20px; 
+            background: white; padding: 12px; border-radius: 8px; 
+            border: 2px solid var(--dark); z-index: 2000; 
+            display: flex; flex-direction: column; gap: 10px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
+        }
+        .picto-item { 
+            width: 60px; height: 35px; color: white; border: 2px solid black; 
+            font-weight: bold; font-size: 11px; display: flex; 
+            align-items: center; justify-content: center; cursor: pointer; 
+        }
+        .picto-selected { outline: 4px solid #ff9f43; box-shadow: 0 0 15px #ff9f43; transform: scale(1.05); }
 
+        /* Étiquettes */
         .unit-label-container { display: flex; flex-direction: column; align-items: center; width: 100px; }
         .unit-box { width: 45px; height: 22px; border: 2px solid black; color: white; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; }
-        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; white-space: nowrap; font-weight: bold; color: black; box-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; font-weight: bold; color: black; box-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
 
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; }
@@ -52,27 +63,24 @@
                 <div id="layers-list"></div>
                 <button class="btn btn-accent" onclick="promptNewLayer()">+ Nouveau Calque</button>
             </div>
-
             <div class="card">
                 <h3><i class="fa-solid fa-users"></i> Capacité x3</h3>
                 <div id="measure-display" style="font-weight:bold; margin-bottom:10px;">Tracez pour mesurer.</div>
                 <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%">
-                <small>Densité : <span id="ratio-val">3</span> pers/m²</small>
                 <div style="margin-top:10px; font-size: 0.8rem; color: #666;">
-                    <i>Note : Clic droit sur un élément pour le supprimer.</i>
+                    <i>Clic droit sur un élément pour le supprimer.</i>
                 </div>
             </div>
-
             <div class="card">
-                <label class="btn btn-accent" style="cursor:pointer; text-align:center; display:block;">Importer (CSV/ZIP/JSON)<input type="file" id="sig-import" style="display:none"></label>
-                <button class="btn btn-accent" onclick="exportAll()" style="margin-top:10px;">Exporter Projet</button>
+                <button class="btn btn-accent" onclick="exportAll()">Exporter Projet</button>
             </div>
         </aside>
 
         <main id="map">
             <div id="picto-box">
-                <div class="picto-item" id="btn-crs" style="background:#0000FF" onclick="selectUnit('CRS')">CRS</div>
-                <div class="picto-item" id="btn-gm" style="background:#5D4037" onclick="selectUnit('GM')">GM</div>
+                <div style="font-size: 9px; font-weight: bold; text-align: center;">CHOISIR UNITÉ :</div>
+                <div class="picto-item" id="btn-crs" style="background:#0000FF" onclick="selectUnit(event, 'CRS')">CRS</div>
+                <div class="picto-item" id="btn-gm" style="background:#5D4037" onclick="selectUnit(event, 'GM')">GM</div>
             </div>
         </main>
     </div>
@@ -80,27 +88,34 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
-    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
-        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [satellite] });
-        L.control.layers({ "Satellite": satellite, "Vue Allégée": light }).addTo(map);
+        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [satellite] });
 
         let layersData = [];
         let activeLayerId = null;
         let selectedUnitType = null;
         let currentRatio = 3;
 
-        // --- GESTION DES UNITÉS ---
-        function selectUnit(type) {
+        // --- EMPECHER LA CARTE DE REAGIR QUAND ON CLIQUE SUR LA FENETRE DES ICONES ---
+        const pictoBox = document.getElementById('picto-box');
+        L.DomEvent.disableClickPropagation(pictoBox);
+
+        // --- SELECTION DE L'UNITE ---
+        function selectUnit(event, type) {
+            // Empêche le clic de traverser vers la carte
+            if (event) event.stopPropagation();
+            
             selectedUnitType = type;
             document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
             document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
+            
+            // On change le curseur pour montrer qu'on va poser quelque chose
             map.getContainer().style.cursor = 'crosshair';
         }
 
+        // --- POSE SUR LA CARTE ---
         map.on('click', function(e) {
             if (!selectedUnitType) return;
 
@@ -117,18 +132,18 @@
                         <div class="unit-info" style="color:#d35400;">${time}</div>
                     </div>`,
                     iconSize: [100, 50],
-                    iconAnchor: [50, 11] 
+                    iconAnchor: [50, 11] // Milieu du bloc couleur sur le clic
                 });
                 
                 const group = layersData.find(l => l.id === activeLayerId).group;
                 const marker = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
                 
-                // Suppression via clic droit
                 marker.on('contextmenu', function() {
                     if(confirm("Supprimer cette unité ?")) group.removeLayer(marker);
                 });
             }
 
+            // Réinitialisation
             selectedUnitType = null;
             map.getContainer().style.cursor = '';
             document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
@@ -168,29 +183,15 @@
             const layer = e.layer;
             const group = layersData.find(l => l.id === activeLayerId).group;
             group.addLayer(layer);
-            
-            // Suppression zone via clic droit
-            layer.on('contextmenu', function() {
-                if(confirm("Supprimer cet élément ?")) group.removeLayer(layer);
-            });
-
+            layer.on('contextmenu', function() { if(confirm("Supprimer cet élément ?")) group.removeLayer(layer); });
             if (layer instanceof L.Polygon) {
                 const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
                 const cap = Math.round(area * currentRatio);
-                const txt = `Surface : ${area.toFixed(1)} m²<br>Capacité : ${cap} pers.`;
-                document.getElementById('measure-display').innerHTML = txt;
-                layer.bindPopup(txt).openPopup();
+                document.getElementById('measure-display').innerHTML = `Surface : ${area.toFixed(1)} m²<br>Capacité : ${cap} pers.`;
             }
         });
 
-        // --- UTILS ---
-        document.getElementById('ratio-slider').oninput = function() {
-            currentRatio = this.value;
-            document.getElementById('ratio-val').innerText = this.value;
-        };
-
         function promptNewLayer() { const n = prompt("Nom du calque :"); if(n) addNewLayer(n); }
-        
         function exportAll() {
             let d = {}; layersData.forEach(l => d[l.name] = l.group.toGeoJSON());
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'plan.json'; a.click();
