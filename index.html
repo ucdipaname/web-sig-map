@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Mesures Dynamiques</title>
+    <title>Géo-Outil Pro - Simulateur de Capacité</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -15,6 +15,7 @@
             --accent: #0070F6;
             --dark: #1e272e;
             --light-grey: #F4F4F4;
+            --success: #27ae60;
         }
 
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -31,9 +32,14 @@
         #map { flex: 1; z-index: 1; }
         
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.95rem; margin-top: 5px; border: 1px solid #ddd; }
-        .measure-highlight { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.95rem; margin-top: 5px; border: 1px solid #ddd; line-height: 1.6; }
+        .measure-highlight { color: var(--accent); font-weight: bold; }
+        .people-highlight { color: var(--success); font-weight: bold; font-size: 1.2rem; }
         
+        .setting-label { font-size: 13px; color: #666; font-weight: bold; display: block; margin-bottom: 8px; }
+        .slider-container { margin-top: 10px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+
         .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
         .btn-accent { background: var(--accent); }
         .btn-danger { background: #e74c3c; }
@@ -43,7 +49,7 @@
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher un lieu ou une adresse..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une ville, une rue..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -51,14 +57,19 @@
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-ruler-combined"></i> Mesures</h3>
-                <div id="measure-display" class="info-box">Tracez une forme pour voir les mesures.</div>
+                <h3><i class="fa-solid fa-users"></i> Capacité</h3>
+                <div class="slider-container">
+                    <span class="setting-label">Ratio : <span id="ratio-val">3</span> pers / m²</span>
+                    <input type="range" id="ratio-slider" min="1" max="10" step="0.5" value="3">
+                </div>
+                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+                <div id="measure-display" class="info-box">Tracez une surface...</div>
             </div>
 
             <div class="card">
                 <h3><i class="fa-solid fa-palette"></i> Style</h3>
-                <label style="font-size: 12px; color: #666;">Couleur du tracé</label>
-                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none; background: none;">
+                <span class="setting-label">Couleur du tracé</span>
+                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:35px; cursor:pointer; border:none; background:none;">
             </div>
 
             <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
@@ -73,16 +84,76 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
-        // --- CONFIGURATION CARTE ---
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' });
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' });
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
-
-        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [osm] });
-        L.control.layers({"Plan": osm, "Plan Allégé": light, "Satellite": satellite}).addTo(map);
+        const map = L.map('map', { center: [46.6, 2.2], zoom: 6 });
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+        
+        L.control.layers({"Plan": osm, "Satellite": satellite}).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
         let currentColor = "#0070F6";
+        let currentRatio = 3;
+
+        // --- GESTION DU RATIO ---
+        const ratioSlider = document.getElementById('ratio-slider');
+        const ratioVal = document.getElementById('ratio-val');
+
+        ratioSlider.oninput = function() {
+            currentRatio = this.value;
+            ratioVal.innerText = currentRatio;
+            // Recalculer pour toutes les couches existantes
+            drawnItems.eachLayer(layer => updateMeasurements(layer));
+        };
+
+        // --- CALCULS ---
+        function updateMeasurements(layer) {
+            let resultHtml = "";
+            
+            if (layer instanceof L.Polygon) {
+                const latlngs = layer.getLatLngs()[0];
+                const area = L.GeometryUtil.geodesicArea(latlngs);
+                const areaStr = area > 1000000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(2) + " m²";
+                const nbPersonnes = Math.floor(area * currentRatio);
+                
+                resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span><br>`;
+                resultHtml += `Nombre de personnes : <span class="people-highlight">${nbPersonnes.toLocaleString()}</span>`;
+            } 
+            else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                const latlngs = layer.getLatLngs();
+                let distance = 0;
+                for (let i = 0; i < latlngs.length - 1; i++) {
+                    distance += latlngs[i].distanceTo(latlngs[i+1]);
+                }
+                resultHtml = `Distance : <span class="measure-highlight">${distance.toFixed(2)} m</span>`;
+            }
+
+            if (resultHtml) {
+                document.getElementById('measure-display').innerHTML = resultHtml;
+                layer.bindPopup(resultHtml).openPopup();
+            }
+        }
+
+        // --- OUTILS DE DESSIN ---
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems },
+            draw: { 
+                circle: false, marker: false, circlemarker: false,
+                polyline: { shapeOptions: { color: currentColor } },
+                polygon: { shapeOptions: { color: currentColor } },
+                rectangle: { shapeOptions: { color: currentColor } }
+            }
+        });
+        map.addControl(drawControl);
+
+        map.on(L.Draw.Event.CREATED, (e) => {
+            e.layer.setStyle({ color: currentColor });
+            drawnItems.addLayer(e.layer);
+            updateMeasurements(e.layer);
+        });
+
+        map.on(L.Draw.Event.EDITED, (e) => {
+            e.layers.eachLayer(layer => updateMeasurements(layer));
+        });
 
         // --- RECHERCHE ---
         const searchInput = document.getElementById('search-input');
@@ -98,8 +169,7 @@
                         div.className = 'result-item';
                         div.textContent = f.properties.label;
                         div.onclick = () => {
-                            const [lon, lat] = f.geometry.coordinates;
-                            map.setView([lat, lon], 18);
+                            map.setView([f.geometry.coordinates[1], f.geometry.coordinates[0]], 18);
                             searchResults.style.display = 'none';
                             searchInput.value = f.properties.label;
                         };
@@ -109,60 +179,6 @@
                 });
         });
 
-        // --- FONCTION DE CALCUL (DYNAMIQUE) ---
-        function updateMeasurements(layer) {
-            let resultHtml = "";
-            
-            if (layer instanceof L.Polygon) {
-                const latlngs = layer.getLatLngs()[0];
-                const area = L.GeometryUtil.geodesicArea(latlngs);
-                const areaStr = area > 1000000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(2) + " m²";
-                resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span>`;
-            } 
-            else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-                const latlngs = layer.getLatLngs();
-                let distance = 0;
-                for (let i = 0; i < latlngs.length - 1; i++) {
-                    distance += latlngs[i].distanceTo(latlngs[i+1]);
-                }
-                const distStr = distance > 1000 ? (distance/1000).toFixed(3) + " km" : distance.toFixed(2) + " m";
-                resultHtml = `Distance : <span class="measure-highlight">${distStr}</span>`;
-            }
-
-            if (resultHtml) {
-                document.getElementById('measure-display').innerHTML = resultHtml;
-                layer.bindPopup(resultHtml).openPopup();
-            }
-        }
-
-        // --- GESTION DU DESSIN ---
-        const drawControl = new L.Control.Draw({
-            edit: { featureGroup: drawnItems },
-            draw: { 
-                circle: false, circlemarker: false, marker: false,
-                polyline: { shapeOptions: { color: currentColor } },
-                polygon: { shapeOptions: { color: currentColor } },
-                rectangle: { shapeOptions: { color: currentColor } }
-            }
-        });
-        map.addControl(drawControl);
-
-        // Création initiale
-        map.on(L.Draw.Event.CREATED, function (e) {
-            const layer = e.layer;
-            layer.setStyle({ color: currentColor });
-            drawnItems.addLayer(layer);
-            updateMeasurements(layer);
-        });
-
-        // Mise à jour lors de la modification (Edition)
-        map.on(L.Draw.Event.EDITED, function (e) {
-            e.layers.eachLayer(function (layer) {
-                updateMeasurements(layer);
-            });
-        });
-
-        // Changement de couleur
         document.getElementById('color-picker').onchange = (e) => {
             currentColor = e.target.value;
             drawControl.setDrawingOptions({
@@ -172,24 +188,22 @@
             });
         };
 
-        // --- ACTIONS ---
         function clearAll() {
-            if(confirm("Effacer tous les tracés ?")) {
+            if(confirm("Tout effacer ?")) {
                 drawnItems.clearLayers();
-                document.getElementById('measure-display').innerHTML = "Tracez une forme.";
+                document.getElementById('measure-display').innerHTML = "Tracez une surface...";
             }
         }
 
         function exportData() {
             const data = drawnItems.toGeoJSON();
-            if (data.features.length === 0) return alert("Aucun tracé à exporter.");
+            if (data.features.length === 0) return;
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'mesures_terrain.geojson';
+            a.download = 'export_terrain.geojson';
             a.click();
         }
     </script>
 </body>
 </html>
- 
