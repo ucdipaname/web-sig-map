@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Complet</title>
+    <title>Géo-Outil Pro - Expertise Totale</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -13,11 +13,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <style>
-        :root { --sidebar-width: 300px; --dark: #1e272e; --accent: #0fbcf9; }
+        :root { --sidebar-width: 320px; --dark: #1e272e; --accent: #0fbcf9; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; }
         
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; position: relative; }
-        .search-container { width: 60%; position: relative; }
+        .search-container { width: 65%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         
         #search-results { 
@@ -25,7 +25,7 @@
             background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             max-height: 250px; overflow-y: auto; display: none; z-index: 3000;
         }
-        .result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; }
+        .result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; color: #333; }
         .result-item:hover { background: #f8f9fa; color: var(--accent); }
 
         #container { display: flex; flex: 1; overflow: hidden; }
@@ -33,12 +33,17 @@
         #map { flex: 1; z-index: 1; }
         
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        h3 { margin-top: 0; font-size: 1rem; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
+        
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.9rem; }
         .btn-import { background: var(--accent); }
         .btn-export { background: #05c46b; }
         .btn-clear { background: #ff3f34; }
-        .btn-gps { background: #485460; margin-bottom: 10px; }
+        .btn-gps { background: #485460; margin-bottom: 10px; width: 100%; }
 
+        .info-box { background: #f1f2f6; padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #dfe4ea; line-height: 1.4; }
+        .coords-val { font-family: monospace; color: #e84118; font-weight: bold; }
+        
         .color-picker-container { display: flex; align-items: center; gap: 15px; margin-top: 10px; font-weight: bold; }
         #color-picker { border: none; width: 40px; height: 40px; cursor: pointer; background: none; }
     </style>
@@ -47,21 +52,21 @@
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une rue, une ville..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse précise..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
 
     <div id="container">
         <aside id="sidebar">
-            <button class="btn btn-gps" onclick="locateUser()"><i class="fa-solid fa-location-crosshairs"></i> Me localiser</button>
+            <button class="btn btn-gps" onclick="locateUser()"><i class="fa-solid fa-location-crosshairs"></i> Ma position GPS</button>
 
             <div class="card">
-                <h3><i class="fa-solid fa-file-import"></i> Importation</h3>
-                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">Charger GeoJSON</button>
-                <input type="file" id="file-input" style="display:none" accept=".geojson,.json">
+                <h3><i class="fa-solid fa-circle-info"></i> Infos sur le point</h3>
+                <div id="address-display" class="info-box">Cliquez sur la carte pour obtenir l'adresse.</div>
+                <div id="coords-display" class="info-box">Lat: -- <br> Lon: --</div>
             </div>
-            
+
             <div class="card">
                 <h3><i class="fa-solid fa-palette"></i> Style de tracé</h3>
                 <div class="color-picker-container">
@@ -71,7 +76,9 @@
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-screwdriver-wrench"></i> Gestion</h3>
+                <h3><i class="fa-solid fa-layer-group"></i> Données</h3>
+                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">Charger GeoJSON</button>
+                <input type="file" id="file-input" style="display:none" accept=".geojson,.json">
                 <button class="btn btn-export" onclick="exportData()">Exporter Projet</button>
                 <button class="btn btn-clear" onclick="clearAllData()">Vider la carte</button>
             </div>
@@ -97,55 +104,68 @@
         L.control.layers({ "Plan Allégé": light, "Plan Classique": osm, "Vue Aérienne": satellite }, 
                          { "Mes dessins": drawnItems, "Marqueurs": markerCluster }).addTo(map);
 
-        // --- 2. RECHERCHE AVEC WIDGET & INDICATEUR ---
         const searchInput = document.getElementById('search-input');
         const searchResults = document.getElementById('search-results');
+        const coordsDisplay = document.getElementById('coords-display');
+        const addressDisplay = document.getElementById('address-display');
         let searchMarker = null;
 
+        // --- 2. RECHERCHE (GÉOCODAGE DIRECT) ---
         searchInput.addEventListener('input', function() {
             const query = this.value;
             if (query.length < 3) { searchResults.style.display = 'none'; return; }
 
-            fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=fr`)
+            fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=6`)
                 .then(r => r.json()).then(data => {
                     searchResults.innerHTML = '';
-                    if (data.features.length > 0) {
-                        data.features.forEach(f => {
-                            const p = f.properties;
-                            const label = `${p.name || ''} ${p.postcode || ''} ${p.city || ''}`;
-                            const div = document.createElement('div');
-                            div.className = 'result-item';
-                            div.textContent = label;
-                            div.onclick = () => {
-                                const [lon, lat] = f.geometry.coordinates;
-                                if (searchMarker) map.removeLayer(searchMarker);
-                                searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
-                                
-                                // Zoom précis : 18 pour rues/maisons, 13 pour villes
-                                const zoom = (p.type === 'house' || p.type === 'street') ? 18 : 13;
-                                map.setView([lat, lon], zoom);
-                                
-                                searchInput.value = label;
-                                searchResults.style.display = 'none';
-                            };
-                            searchResults.appendChild(div);
-                        });
-                        searchResults.style.display = 'block';
-                    }
+                    data.features.forEach(f => {
+                        const label = f.properties.label;
+                        const div = document.createElement('div');
+                        div.className = 'result-item';
+                        div.innerHTML = `<i class="fa-solid fa-magnifying-glass-location"></i> ${label}`;
+                        div.onclick = () => {
+                            const [lon, lat] = f.geometry.coordinates;
+                            updatePointInfo(lat, lon, label);
+                            map.setView([lat, lon], 19);
+                            searchInput.value = label;
+                            searchResults.style.display = 'none';
+                        };
+                        searchResults.appendChild(div);
+                    });
+                    searchResults.style.display = 'block';
                 });
         });
 
-        // --- 3. GÉOLOCALISATION ---
+        // --- 3. CLIC CARTE (GÉOCODAGE INVERSE) ---
+        map.on('click', (e) => {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            
+            // On interroge l'API pour savoir ce qu'il y a à ces coordonnées
+            fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`)
+                .then(r => r.json())
+                .then(data => {
+                    const label = data.features.length > 0 ? data.features[0].properties.label : "Adresse inconnue";
+                    updatePointInfo(lat, lon, label);
+                });
+        });
+
+        function updatePointInfo(lat, lon, address) {
+            if (searchMarker) map.removeLayer(searchMarker);
+            searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(address).openPopup();
+            
+            addressDisplay.innerHTML = `<i class="fa-solid fa-house"></i> <b>Adresse :</b><br>${address}`;
+            coordsDisplay.innerHTML = `<i class="fa-solid fa-crosshairs"></i> <b>Coordonnées :</b><br>Lat: <span class="coords-val">${lat.toFixed(6)}</span><br>Lon: <span class="coords-val">${lon.toFixed(6)}</span>`;
+        }
+
+        // --- 4. GPS & DESSIN ---
         function locateUser() {
-            map.locate({setView: true, maxZoom: 16});
+            map.locate({setView: true, maxZoom: 18});
         }
         map.on('locationfound', (e) => {
-            L.circle(e.latlng, e.accuracy).addTo(map);
-            L.marker(e.latlng).addTo(map).bindPopup("Vous êtes ici").openPopup();
+            updatePointInfo(e.latlng.lat, e.latlng.lng, "Votre position actuelle");
         });
-        map.on('locationerror', () => alert("Géolocalisation refusée ou non disponible."));
 
-        // --- 4. DESSIN & STYLE ---
         let currentColor = "#0fbcf9";
         let drawControl;
 
@@ -171,7 +191,7 @@
 
         new L.Control.Measure({ primaryLengthUnit: 'meters', localization: 'fr', activeColor: currentColor }).addTo(map);
 
-        // --- 5. PERSISTANCE & ACTIONS ---
+        // --- 5. PERSISTANCE & EXPORT ---
         function saveToLocal() {
             localStorage.setItem('mapData_Backup', JSON.stringify({ drawn: drawnItems.toGeoJSON(), clustered: markerCluster.toGeoJSON() }));
         }
@@ -182,7 +202,7 @@
             const data = JSON.parse(saved);
             if (data.drawn) L.geoJSON(data.drawn, { 
                 style: (f) => ({color: f.properties.color || currentColor}),
-                onEachLayer: (f, l) => { l.on('click', () => { if(confirm("Supprimer ?")) { drawnItems.removeLayer(l); saveToLocal(); } }); }
+                onEachLayer: (f, l) => { l.on('click', () => { if(confirm("Supprimer cet objet ?")) { drawnItems.removeLayer(l); saveToLocal(); } }); }
             }).eachLayer(l => drawnItems.addLayer(l));
             if (data.clustered) L.geoJSON(data.clustered).eachLayer(l => markerCluster.addLayer(l));
         }
@@ -202,11 +222,11 @@
             const data = { type: "FeatureCollection", features: [...drawnItems.toGeoJSON().features, ...markerCluster.toGeoJSON().features] };
             const a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
-            a.download = 'carte_export.geojson';
+            a.download = 'export_geo_outil.geojson';
             a.click();
         }
 
-        function clearAllData() { if(confirm("Vider toute la carte ?")) { drawnItems.clearLayers(); markerCluster.clearLayers(); localStorage.removeItem('mapData_Backup'); } }
+        function clearAllData() { if(confirm("Réinitialiser la carte ?")) { drawnItems.clearLayers(); markerCluster.clearLayers(); localStorage.removeItem('mapData_Backup'); } }
 
         document.addEventListener('click', (e) => { if (e.target !== searchInput) searchResults.style.display = 'none'; });
         window.onload = loadFromLocal;
