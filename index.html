@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité Pro - Intégral</title>
+    <title>Géo-Outil Sécurité Pro - Final</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <style>
-        :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; }
+        :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; --danger: #e74c3c; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 5000; padding: 0 20px; }
@@ -26,6 +26,12 @@
         .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; margin-top: 5px; color: #0056b3; font-size: 0.85rem; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; }
         .btn-accent { background: var(--accent); }
+        .btn-danger { background: var(--danger); margin-top: 10px; font-size: 10px; padding: 5px; }
+
+        /* Formulaire Popup */
+        .edit-form { display: flex; flex-direction: column; gap: 5px; min-width: 200px; padding: 5px; }
+        .edit-form input { padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .edit-form label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
 
         /* Pictos */
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
@@ -37,9 +43,6 @@
         .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; }
         .unit-brav span { transform: rotate(-45deg); }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
-
-        .attr-table { font-size: 11px; border-collapse: collapse; width: 100%; }
-        .attr-table td { border-bottom: 1px solid #eee; padding: 3px; }
     </style>
 </head>
 <body>
@@ -59,8 +62,8 @@
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-ruler"></i> Mesures</h3>
-                <div id="measure-display" class="info-box">Cliquez sur une forme pour voir ses mesures.</div>
+                <h3><i class="fa-solid fa-ruler"></i> Mesures & Calculs</h3>
+                <div id="measure-display" class="info-box">Cliquez sur une forme pour calculer.</div>
                 <div style="margin-top:10px;">
                     <small>Ratio : <span id="ratio-val">3</span> pers/m²</small>
                     <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%;">
@@ -68,9 +71,9 @@
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-file-import"></i> Import SIG</h3>
+                <h3><i class="fa-solid fa-file-import"></i> Import CSV / SHP</h3>
                 <label class="btn btn-accent" style="cursor:pointer;">
-                    Charger Fichier (CSV/SHP.zip)
+                    Importer un fichier
                     <input type="file" id="sig-import" style="display:none">
                 </label>
             </div>
@@ -81,7 +84,7 @@
                 <button class="btn btn-accent" onclick="promptNewLayer()">+ Nouveau Calque</button>
             </div>
 
-            <button class="btn" style="background:#27ae60; margin-top:20px;" onclick="exportToImage()">Exporter Image HD</button>
+            <button class="btn" style="background:#27ae60; margin-top:20px;" onclick="exportToImage()">Exporter le plan (Image HD)</button>
         </aside>
 
         <main id="map">
@@ -101,11 +104,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script>
-        // --- INITIALISATION ---
+        // --- CONFIGURATION CARTE ---
+        const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { crossOrigin: 'Anonymous' });
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { crossOrigin: 'Anonymous' });
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: 'Anonymous' });
-        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [satellite] });
-        L.control.layers({ "Satellite": satellite, "Plan": osm }).addTo(map);
+
+        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [osmLight] });
+        L.control.layers({ "OSM Allégé": osmLight, "Satellite": satellite, "Standard": osm }).addTo(map);
 
         let layersData = [];
         let activeLayerId = null;
@@ -147,6 +152,40 @@
             map.addControl(window.dc);
         }
 
+        // --- ÉDITION & SUPPRESSION ---
+        function deleteFeature(layerId) {
+            const group = layersData.find(l => l.id === activeLayerId).group;
+            const layer = group.getLayer(layerId);
+            if(layer) {
+                group.removeLayer(layer);
+                document.getElementById('measure-display').innerHTML = "Objet supprimé.";
+            }
+        }
+
+        function updateProp(layerId, key, val) {
+            const group = layersData.find(l => l.id === activeLayerId).group;
+            const layer = group.getLayer(layerId);
+            if(layer) {
+                if(!layer.feature) layer.feature = { properties: {} };
+                layer.feature.properties[key] = val;
+            }
+        }
+
+        function createEditablePopup(layer) {
+            const layerId = L.stamp(layer);
+            const props = (layer.feature && layer.feature.properties) ? layer.feature.properties : { "Nom": "Nouveau", "Infos": "" };
+            
+            let html = `<div class="edit-form">`;
+            for (let key in props) {
+                if(typeof props[key] !== 'object') {
+                    html += `<label>${key}</label><input type="text" value="${props[key]}" onchange="updateProp(${layerId}, '${key}', this.value)">`;
+                }
+            }
+            html += `<button class="btn btn-danger" onclick="deleteFeature(${layerId})"><i class="fa-solid fa-trash"></i> Supprimer l'objet</button>`;
+            html += `</div>`;
+            return html;
+        }
+
         // --- CALCULS ---
         function refreshMeasure(layer) {
             if (!layer) return;
@@ -164,7 +203,12 @@
 
         map.on(L.Draw.Event.CREATED, (e) => {
             const layer = e.layer;
-            layersData.find(l => l.id === activeLayerId).group.addLayer(layer);
+            const group = layersData.find(l => l.id === activeLayerId).group;
+            group.addLayer(layer);
+            
+            if(!layer.feature) layer.feature = { properties: { "Nom": "Zone Tactique", "Notes": "" } };
+            layer.bindPopup(() => createEditablePopup(layer));
+            
             lastSelectedShape = layer;
             refreshMeasure(layer);
             layer.on('click', (ev) => { L.DomEvent.stopPropagation(ev); lastSelectedShape = layer; refreshMeasure(layer); });
@@ -187,63 +231,57 @@
             
             if (name) {
                 let color = selectedUnitType==='CRS'?'blue':(selectedUnitType==='GM'?'#5D4037':(selectedUnitType==='CIE'?'red':'green'));
-                let extraClass = selectedUnitType==='CIE'?'unit-cie':(selectedUnitType==='BRAV'?'unit-brav':'');
-                let html = `<div class="unit-label-container"><div class="unit-box ${extraClass}" style="background:${color}">${selectedUnitType==='BRAV'?'<span>BRAV</span>':selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
+                let extra = selectedUnitType==='CIE'?'unit-cie':(selectedUnitType==='BRAV'?'unit-brav':'');
+                let html = `<div class="unit-label-container"><div class="unit-box ${extra}" style="background:${color}">${selectedUnitType==='BRAV'?'<span>BRAV</span>':selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
                 
-                L.marker(e.latlng, {
-                    icon: L.divIcon({ className:'custom-icon', html:html, iconSize:[100,60] }),
-                    draggable: true
-                }).addTo(group);
+                const m = L.marker(e.latlng, { icon: L.divIcon({ className:'custom-icon', html:html, iconSize:[100,60] }), draggable: true }).addTo(group);
+                m.feature = { properties: { "Unité": selectedUnitType, "Nom": name, "Heure": time } };
+                m.bindPopup(() => createEditablePopup(m));
             }
-            selectedUnitType = null; 
-            map.getContainer().style.cursor = '';
+            selectedUnitType = null; map.getContainer().style.cursor = '';
         });
 
-        // --- IMPORT & TABLES ---
-        function createAttrTable(props) {
-            let table = `<table class="attr-table">`;
-            for (let key in props) { if (props[key] && typeof props[key] !== 'object') table += `<tr><td><b>${key}</b></td><td>${props[key]}</td></tr>`; }
-            return table + `</table>`;
-        }
-
+        // --- IMPORT ---
         document.getElementById('sig-import').onchange = function(e) {
             const file = e.target.files[0], reader = new FileReader();
             const group = layersData.find(l => l.id === activeLayerId).group;
 
             reader.onload = async (ev) => {
                 if (file.name.endsWith('.csv')) {
-                    const lines = ev.target.result.split(/\r?\n/), sep = ev.target.result.includes(';') ? ';' : ',';
-                    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
-                    const latIdx = headers.findIndex(h => h.includes('lat')), lngIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
+                    const text = ev.target.result;
+                    const lines = text.split(/\r?\n/), sep = text.includes(';') ? ';' : ',';
+                    const headers = lines[0].split(sep).map(h => h.trim());
+                    const latIdx = headers.findIndex(h => h.toLowerCase().includes('lat')), lngIdx = headers.findIndex(h => h.toLowerCase().includes('lon') || h.toLowerCase().includes('lng'));
 
                     lines.slice(1).forEach(line => {
                         const cols = line.split(sep);
                         if (cols.length > latIdx && !isNaN(parseFloat(cols[latIdx]))) {
-                            let props = {}; headers.forEach((h, i) => props[h] = cols[i]);
-                            L.marker([parseFloat(cols[latIdx]), parseFloat(cols[lngIdx])]).addTo(group).bindPopup(createAttrTable(props));
+                            let p = {}; headers.forEach((h, i) => p[h] = cols[i]);
+                            const m = L.marker([parseFloat(cols[latIdx]), parseFloat(cols[lngIdx])]).addTo(group);
+                            m.feature = { properties: p };
+                            m.bindPopup(() => createEditablePopup(m));
                         }
                     });
                 } else if (file.name.endsWith('.zip')) {
                     const geo = await shp(ev.target.result);
-                    L.geoJSON(geo, { onEachFeature: (f, l) => l.bindPopup(createAttrTable(f.properties)) }).addTo(group);
+                    L.geoJSON(geo, { onEachFeature: (f, l) => l.bindPopup(() => createEditablePopup(l)) }).addTo(group);
                 }
             };
             if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file); else reader.readAsText(file);
         };
 
-        // --- EXPORT ---
+        // --- EXPORT & RECHERCHE ---
         function exportToImage() {
             document.getElementById('picto-box').style.display = 'none';
             html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
                 const link = document.createElement('a');
-                link.download = 'plan.jpg';
+                link.download = 'plan_tactique.jpg';
                 link.href = canvas.toDataURL('image/jpeg', 0.9);
                 link.click();
                 document.getElementById('picto-box').style.display = 'flex';
             });
         }
 
-        // --- RECHERCHE ---
         document.getElementById('search-input').oninput = async function() {
             if(this.value.length < 3) return;
             const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`);
@@ -254,7 +292,7 @@
         };
 
         function promptNewLayer() { let n = prompt("Nom ?"); if(n) addNewLayer(n); }
-        addNewLayer("Secteur 1");
+        addNewLayer("Secteur Tactique 1");
     </script>
 </body>
 </html>
