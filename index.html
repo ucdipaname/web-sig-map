@@ -1,10 +1,9 @@
-
-   <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro v2 - SIG & CSV</title>
+    <title>Géo-Outil Pro - Multi-Vues & Import CSV</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -12,75 +11,54 @@
 
     <style>
         :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; --success: #27ae60; }
-        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        /* Barre supérieure */
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; }
         .search-container { width: 70%; }
-        #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 1rem; }
-
+        #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; }
         #container { display: flex; flex: 1; overflow: hidden; }
-        
-        /* Sidebar */
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
-        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        h3 { margin-top: 0; color: var(--dark); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
-        
-        /* Outils de mesure et import */
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 10px; border: 1px solid #ddd; }
-        .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity 0.2s; }
+        #map { flex: 1; z-index: 1; }
+        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #eee; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 5px; border: 1px solid #ddd; }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-accent { background: var(--accent); }
         .btn-danger { background: #e74c3c; }
-        .btn:hover { opacity: 0.9; }
-        
-        .file-label { display: block; background: #fff; padding: 20px; border-radius: 6px; border: 2px dashed #bbb; text-align: center; cursor: pointer; font-weight: bold; color: #666; transition: border-color 0.2s; }
-        .file-label:hover { border-color: var(--accent); color: var(--accent); }
+        .file-label { display: block; background: #fff; padding: 15px; border-radius: 6px; border: 2px dashed #bbb; text-align: center; cursor: pointer; font-weight: bold; color: #666; }
         input[type="file"] { display: none; }
-
-        /* Barre de progression */
         #loader-container { display: none; margin-top: 10px; }
-        .progress-text { font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; color: var(--success); }
-        .progress-bg { width: 100%; background: #ddd; height: 10px; border-radius: 5px; overflow: hidden; }
+        .progress-bg { width: 100%; background: #ddd; height: 8px; border-radius: 4px; overflow: hidden; }
         #progress-bar { width: 0%; height: 100%; background: var(--success); transition: width 0.2s; }
-
-        #map { flex: 1; z-index: 1; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse précise..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse..." autocomplete="off">
         </div>
     </header>
 
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-users"></i> Paramètres Capacité</h3>
-                <label style="font-size: 0.9rem;">Ratio de densité :</label>
-                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin: 10px 0;">
-                <div id="measure-display" class="info-box">Ratio actuel : <span id="ratio-val">3</span> pers/m²</div>
+                <h3><i class="fa-solid fa-users"></i> Capacité</h3>
+                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%">
+                <div id="measure-display" class="info-box">Ratio: <span id="ratio-val">3</span> pers/m²</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-file-import"></i> Importation de fichiers</h3>
-                <label class="file-label" for="sig-import">
-                    <i class="fa-solid fa-cloud-arrow-up fa-2x"></i><br>
-                    GeoJSON, ZIP (SHP) ou CSV
-                </label>
+                <h3><i class="fa-solid fa-file-import"></i> Import SIG & CSV</h3>
+                <label class="file-label" for="sig-import">Glisser GeoJSON, ZIP ou CSV</label>
                 <input type="file" id="sig-import" accept=".geojson,.json,.zip,.csv">
-                
                 <div id="loader-container">
-                    <div class="progress-text">Géocodage en cours : <span id="progress-percent">0</span>%</div>
+                    <div style="font-size: 0.75rem; margin-bottom: 3px;">Traitement CSV : <span id="progress-percent">0</span>%</div>
                     <div class="progress-bg"><div id="progress-bar"></div></div>
                 </div>
             </div>
 
-            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter en GeoJSON</button>
-            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash-can"></i> Vider la carte</button>
+            <button class="btn btn-accent" onclick="exportData()">Exporter GeoJSON</button>
+            <button class="btn btn-danger" onclick="clearAll()">Vider la carte</button>
         </aside>
-
         <main id="map"></main>
     </div>
 
@@ -92,93 +70,88 @@
 
     <script>
         const EPSG2154 = "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
-        const map = L.map('map', { center: [46.6033, 1.8883], zoom: 6 });
-        
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        // --- GESTION DES FONDS DE CARTE ---
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' });
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' });
+
+        const map = L.map('map', { 
+            center: [48.8566, 2.3522], 
+            zoom: 12, 
+            layers: [osm] // Fond par défaut
+        });
+
+        const baseMaps = {
+            "Plan (OSM)": osm,
+            "Vue Aérienne": satellite,
+            "Vue Allégée": light
+        };
+        L.control.layers(baseMaps).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
         let currentRatio = 3;
 
-        // Utilitaire de pause pour l'API
-        const sleep = ms => new Promise(res => setTimeout(res, ms));
-
-        // --- CALCULS ET MESURES ---
-
         function updateMeasurements(layer) {
             if (layer instanceof L.Polygon) {
-                const latlngs = layer.getLatLngs();
-                const area = L.GeometryUtil.geodesicArea(latlngs[0]);
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
                 const nbPers = Math.floor(area * currentRatio);
-                
-                const content = `
-                    <div style="min-width:150px">
-                        <strong>Surface :</strong> ${area.toFixed(1)} m²<br>
-                        <strong>Ratio :</strong> ${currentRatio} pers/m²<br>
-                        <strong style="color:var(--success)">Capacité : ${nbPers.toLocaleString()} pers.</strong>
-                    </div>`;
-                
-                document.getElementById('measure-display').innerHTML = content;
-                layer.bindPopup(content).openPopup();
+                const text = `Surface: <b>${area.toFixed(1)} m²</b><br>Capacité: <b style="color:green">${nbPers.toLocaleString()} pers.</b>`;
+                document.getElementById('measure-display').innerHTML = text;
+                layer.bindPopup(text).openPopup();
             }
         }
 
-        // --- GESTION DES FICHIERS ---
-
-        function convertToWGS84(gj) {
+        // Détection et conversion de projection intelligente
+        function convertGj(gj) {
             if (!gj || !gj.features || gj.features.length === 0) return gj;
-            let firstCoord = gj.features[0].geometry.coordinates;
-            while(Array.isArray(firstCoord[0])) firstCoord = firstCoord[0];
-
-            if (Math.abs(firstCoord[0]) > 180) { // Détection Lambert 93
+            let first = gj.features[0].geometry.coordinates;
+            while(Array.isArray(first[0])) first = first[0];
+            
+            // Si la coordonnée est > 180, c'est probablement du Lambert (EPSG:2154)
+            if (Math.abs(first[0]) > 180) { 
                 const transform = (c) => (typeof c[0] === 'number') ? proj4(EPSG2154, 'WGS84', c) : c.map(transform);
                 gj.features.forEach(f => { if(f.geometry) f.geometry.coordinates = transform(f.geometry.coordinates); });
             }
             return gj;
         }
 
-        async function processCsv(csvText) {
+        async function csvToGeoJSON(csvText) {
             const lines = csvText.split('\n').filter(l => l.trim() !== "");
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
             
-            // Recherche colonnes
-            const addrIdx = headers.findIndex(h => h.includes('adr') || h.includes('lieu') || h.includes('location'));
             const latIdx = headers.findIndex(h => h.includes('lat'));
             const lonIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
+            const addrIdx = headers.findIndex(h => h.includes('adr') || h.includes('lieu'));
 
             const features = [];
             const loader = document.getElementById('loader-container');
             const pBar = document.getElementById('progress-bar');
-            const pText = document.getElementById('progress-percent');
-
             loader.style.display = 'block';
 
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].split(',');
-                const progress = Math.round((i / (lines.length - 1)) * 100);
+                const progress = Math.round((i / lines.length) * 100);
                 pBar.style.width = progress + '%';
-                pText.innerText = progress;
+                document.getElementById('progress-percent').innerText = progress;
 
-                // Cas 1 : Coordonnées présentes
-                if (latIdx !== -1 && lonIdx !== -1 && cols[latIdx] && cols[lonIdx]) {
+                // Si coordonnée GPS directe (WGS84)
+                if (latIdx !== -1 && lonIdx !== -1 && cols[latIdx]) {
                     features.push({
                         type: "Feature",
                         geometry: { type: "Point", coordinates: [parseFloat(cols[lonIdx]), parseFloat(cols[latIdx])] },
-                        properties: { label: cols[addrIdx] || "Point " + i }
+                        properties: { label: cols[addrIdx] || "Point" }
                     });
                 } 
-                // Cas 2 : Adresse présente (Géocodage API BAN)
+                // Sinon Géocodage
                 else if (addrIdx !== -1 && cols[addrIdx]) {
                     try {
-                        await sleep(150); // Respect de la limite API
-                        const query = encodeURIComponent(cols[addrIdx].trim());
-                        const resp = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${query}&limit=1`);
-                        const data = await resp.json();
-                        if (data.features && data.features.length > 0) {
-                            features.push(data.features[0]);
-                        }
-                    } catch (e) { console.error("Erreur géocodage ligne " + i); }
+                        await sleep(150);
+                        const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[addrIdx])}&limit=1`);
+                        const data = await res.json();
+                        if (data.features.length > 0) features.push(data.features[0]);
+                    } catch(e) {}
                 }
             }
             loader.style.display = 'none';
@@ -189,86 +162,58 @@
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            const name = file.name.toLowerCase();
 
-            reader.onload = async (event) => {
+            reader.onload = async function(event) {
                 try {
                     let gj;
-                    if (name.endsWith('.zip')) gj = await shp(event.target.result);
-                    else if (name.endsWith('.csv')) gj = await processCsv(event.target.result);
+                    if (file.name.endsWith('.zip')) gj = await shp(event.target.result);
+                    else if (file.name.endsWith('.csv')) gj = await csvToGeoJSON(event.target.result);
                     else gj = JSON.parse(event.target.result);
-
-                    if (Array.isArray(gj)) gj.forEach(layer => displayLayer(layer));
-                    else displayLayer(gj);
-                } catch (err) { alert("Erreur lors de l'import : " + err.message); }
+                    
+                    if (Array.isArray(gj)) gj.forEach(data => processLayer(data));
+                    else processLayer(gj);
+                } catch (err) { alert("Erreur: " + err.message); }
             };
 
-            if (name.endsWith('.zip')) reader.readAsArrayBuffer(file);
+            if (file.name.endsWith('.zip')) reader.readAsArrayBuffer(file);
             else reader.readAsText(file);
         };
 
-        function displayLayer(data) {
-            const cleanGj = convertToWGS84(data);
+        function processLayer(data) {
+            const cleanGj = convertGj(data);
             const geoLayer = L.geoJSON(cleanGj, {
-                style: { color: "#0070F6", weight: 2, fillOpacity: 0.2 },
-                pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
-                    radius: 7, fillColor: "#27ae60", color: "#fff", weight: 2, fillOpacity: 0.9
-                }),
+                pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius: 6, fillColor: "#0070F6", color: "#fff", weight: 1, fillOpacity: 0.8}),
                 onEachFeature: (f, l) => {
                     drawnItems.addLayer(l);
                     l.on('click', () => {
                         if (l instanceof L.Polygon) updateMeasurements(l);
-                        else l.bindPopup(`<strong>Point importé :</strong><br>${f.properties.label || f.properties.nom || "Sans nom"}`).openPopup();
+                        else l.bindPopup(f.properties.label || f.properties.nom || "Point").openPopup();
                     });
                 }
             }).addTo(map);
-
             if (geoLayer.getBounds().isValid()) map.fitBounds(geoLayer.getBounds());
         }
 
-        // --- CONTRÔLES DE DESSIN ---
-
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
-            draw: { circle: false, marker: false, circlemarker: false, polyline: false }
+            draw: { circle: false, marker: false, circlemarker: false }
         });
         map.addControl(drawControl);
 
-        map.on(L.Draw.Event.CREATED, e => {
-            drawnItems.addLayer(e.layer);
-            updateMeasurements(e.layer);
-        });
-
-        // REFRESH AUTOMATIQUE LORS DE LA MODIFICATION
-        map.on(L.Draw.Event.EDITED, e => {
-            e.layers.eachLayer(layer => updateMeasurements(layer));
-        });
-
-        // --- INTERFACE ---
+        map.on(L.Draw.Event.CREATED, e => { drawnItems.addLayer(e.layer); updateMeasurements(e.layer); });
+        map.on(L.Draw.Event.EDITED, e => { e.layers.eachLayer(l => updateMeasurements(l)); });
 
         document.getElementById('ratio-slider').oninput = function() {
             currentRatio = this.value;
             document.getElementById('ratio-val').innerText = this.value;
-            drawnItems.eachLayer(l => {
-                if (l instanceof L.Polygon) updateMeasurements(l);
-            });
+            drawnItems.eachLayer(l => { if (l instanceof L.Polygon) updateMeasurements(l); });
         };
 
-        function clearAll() {
-            if (confirm("Voulez-vous vraiment vider toute la carte ?")) {
-                drawnItems.clearLayers();
-                document.getElementById('measure-display').innerHTML = "Carte vidée.";
-            }
-        }
-
+        function clearAll() { if(confirm("Vider?")) drawnItems.clearLayers(); }
         function exportData() {
-            if (drawnItems.getLayers().length === 0) return alert("Rien à exporter.");
-            const data = drawnItems.toGeoJSON();
-            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `geo-export-${new Date().toISOString().slice(0,10)}.geojson`;
-            a.click();
+            const blob = new Blob([JSON.stringify(drawnItems.toGeoJSON())], {type: 'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = 'export.geojson'; a.click();
         }
     </script>
 </body>
