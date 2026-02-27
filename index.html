@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Import & Capacité</title>
+    <title>Géo-Outil Pro - Import SIG & Lambert-93</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -19,7 +19,6 @@
         }
 
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; flex-shrink: 0; }
         .search-container { width: 70%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; }
@@ -29,7 +28,7 @@
         #map { flex: 1; z-index: 1; }
         
         .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 5px; border: 1px solid #ddd; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 5px; border: 1px solid #ddd; min-height: 40px; }
         
         .setting-label { font-size: 12px; color: #666; font-weight: bold; display: block; margin-bottom: 5px; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
@@ -38,7 +37,8 @@
         .btn-danger { background: #e74c3c; }
         
         input[type="file"] { display: none; }
-        .file-label { display: block; background: #eee; padding: 8px; border-radius: 4px; border: 1px dashed #ccc; text-align: center; cursor: pointer; font-size: 12px; margin-bottom: 5px; }
+        .file-label { display: block; background: #eee; padding: 10px; border-radius: 4px; border: 1px dashed #ccc; text-align: center; cursor: pointer; font-size: 12px; margin-bottom: 5px; transition: background 0.2s; }
+        .file-label:hover { background: #e2e2e2; }
         
         .measure-highlight { color: var(--accent); font-weight: bold; }
         .people-highlight { color: var(--success); font-weight: bold; }
@@ -48,7 +48,7 @@
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: 75001 Paris)..." autocomplete="off">
         </div>
     </header>
 
@@ -58,31 +58,29 @@
                 <h3><i class="fa-solid fa-users"></i> Capacité</h3>
                 <span class="setting-label">Ratio : <span id="ratio-val">3</span> pers / m²</span>
                 <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%">
-                <div id="measure-display" class="info-box">Tracez une forme...</div>
+                <div id="measure-display" class="info-box">Tracez ou importez une forme...</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-file-csv"></i> Import CSV</h3>
-                <span class="setting-label">Fichier avec colonne "adresse"</span>
-                <label class="file-label" for="csv-import">Choisir un CSV</label>
+                <h3><i class="fa-solid fa-file-csv"></i> Géocodage CSV</h3>
+                <label class="file-label" for="csv-import">Choisir un fichier CSV</label>
                 <input type="file" id="csv-import" accept=".csv">
-                <button class="btn btn-import" onclick="document.getElementById('csv-import').click()"><i class="fa-solid fa-upload"></i> Géocoder CSV</button>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-map-location-dot"></i> Import SIG</h3>
-                <span class="setting-label">GeoJSON ou Shapefile (.zip)</span>
-                <label class="file-label" for="sig-import">Choisir un fichier</label>
+                <h3><i class="fa-solid fa-map-location-dot"></i> Import SIG (Auto-L93)</h3>
+                <span class="setting-label">Supporte GeoJSON et .ZIP (Shapefile)</span>
+                <label class="file-label" for="sig-import">Glisser un GeoJSON ou SHP.zip</label>
                 <input type="file" id="sig-import" accept=".geojson,.json,.zip">
             </div>
 
             <div class="card">
                 <h3><i class="fa-solid fa-palette"></i> Style</h3>
-                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:30px; cursor:pointer; border:none;">
+                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:30px; cursor:pointer; border:none; background:none;">
             </div>
 
             <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
-            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Effacer tout</button>
+            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Effacer la carte</button>
         </aside>
 
         <main id="map"></main>
@@ -91,12 +89,18 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shpjs/4.0.2/shp.min.js"></script> <script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shpjs/4.0.2/shp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
+
+    <script>
+        // --- CONFIGURATION ---
+        const L93 = "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
+        
         const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
-        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [light] });
+        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 12, layers: [light] });
         L.control.layers({"Plan Allégé": light, "Standard": osm, "Satellite": satellite}).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
@@ -109,7 +113,7 @@
             if (layer instanceof L.Polygon) {
                 const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
                 const nbPers = Math.floor(area * currentRatio);
-                resultHtml = `Surface: <span class="measure-highlight">${area.toFixed(2)} m²</span><br>Pers: <span class="people-highlight">${nbPers.toLocaleString()}</span>`;
+                resultHtml = `Surface: <span class="measure-highlight">${area.toFixed(2)} m²</span><br>Capacité: <span class="people-highlight">${nbPers.toLocaleString()} pers.</span>`;
             } else if (layer instanceof L.Polyline) {
                 const latlngs = layer.getLatLngs();
                 let d = 0;
@@ -122,7 +126,60 @@
             }
         }
 
-        // --- DESSIN ---
+        // --- CONVERSION PROJECTION ---
+        function checkAndConvert(geojson) {
+            const firstFeature = geojson.features ? geojson.features[0] : geojson;
+            if (!firstFeature) return geojson;
+
+            let coords = firstFeature.geometry.coordinates;
+            while(Array.isArray(coords[0])) coords = coords[0];
+
+            // Si X > 180, c'est probablement du Lambert-93
+            if (Math.abs(coords[0]) > 180) {
+                console.log("Lambert-93 détecté. Conversion...");
+                const transform = (c) => {
+                    if (typeof c[0] === 'number') return proj4(L93, 'WGS84', c);
+                    return c.map(transform);
+                };
+                
+                const newGj = JSON.parse(JSON.stringify(geojson));
+                if(newGj.features) newGj.features.forEach(f => f.geometry.coordinates = transform(f.geometry.coordinates));
+                else newGj.geometry.coordinates = transform(newGj.geometry.coordinates);
+                return newGj;
+            }
+            return geojson;
+        }
+
+        // --- IMPORT SIG ---
+        document.getElementById('sig-import').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function(event) {
+                let gj;
+                if (file.name.endsWith('.zip')) {
+                    gj = await shp(event.target.result);
+                } else {
+                    gj = JSON.parse(event.target.result);
+                }
+
+                gj = checkAndConvert(gj);
+
+                const layer = L.geoJSON(gj, {
+                    style: { color: currentColor, weight: 2, fillOpacity: 0.2 },
+                    onEachFeature: (f, l) => {
+                        drawnItems.addLayer(l);
+                        if (l instanceof L.Polygon) updateMeasurements(l);
+                    }
+                }).addTo(map);
+                map.fitBounds(layer.getBounds());
+            };
+
+            if (file.name.endsWith('.zip')) reader.readAsArrayBuffer(file);
+            else reader.readAsText(file);
+        });
+
+        // --- DESSIN & UI ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: { circle:false, marker:false, circlemarker:false, polyline:{shapeOptions:{color:currentColor}}, polygon:{shapeOptions:{color:currentColor}} }
@@ -131,76 +188,21 @@
         map.on(L.Draw.Event.CREATED, e => { drawnItems.addLayer(e.layer); updateMeasurements(e.layer); });
         map.on(L.Draw.Event.EDITED, e => e.layers.eachLayer(l => updateMeasurements(l)));
 
-        // --- MODULE IMPORT CSV (GÉOCODAGE) ---
-        document.getElementById('csv-import').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const lines = event.target.result.split('\n');
-                const headers = lines[0].toLowerCase().split(',');
-                const addrIdx = headers.findIndex(h => h.includes('adresse'));
-
-                if(addrIdx === -1) return alert("Colonne 'adresse' non trouvée.");
-
-                for(let i=1; i<lines.length; i++) {
-                    const cols = lines[i].split(',');
-                    if(cols[addrIdx]) {
-                        await geocodeAndPlace(cols[addrIdx]);
-                    }
-                }
-            };
-            reader.readAsText(file);
-        });
-
-        async function geocodeAndPlace(addr) {
-            try {
-                const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(addr)}&limit=1`);
-                const d = await r.json();
-                if(d.features.length > 0) {
-                    const [lon, lat] = d.features[0].geometry.coordinates;
-                    const marker = L.marker([lat, lon]).addTo(drawnItems);
-                    marker.bindPopup(`<b>Importé :</b><br>${addr}`);
-                }
-            } catch(e) { console.error("Erreur géocodage", e); }
-        }
-
-        // --- MODULE IMPORT SIG (GEOJSON / SHP) ---
-        document.getElementById('sig-import').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-
-            if (file.name.endsWith('.zip')) {
-                reader.onload = async function(event) {
-                    const geojson = await shp(event.target.result);
-                    L.geoJSON(geojson, { onEachFeature: (f, l) => drawnItems.addLayer(l) });
-                };
-                reader.readAsArrayBuffer(file);
-            } else {
-                reader.onload = function(event) {
-                    const geojson = JSON.parse(event.target.result);
-                    L.geoJSON(geojson, { onEachFeature: (f, l) => drawnItems.addLayer(l) });
-                };
-                reader.readAsText(file);
-            }
-        });
-
-        // --- REGLAGES & ACTIONS ---
         document.getElementById('ratio-slider').oninput = function() {
             currentRatio = this.value;
             document.getElementById('ratio-val').innerText = this.value;
             drawnItems.eachLayer(l => updateMeasurements(l));
         };
 
-        function clearAll() { if(confirm("Tout effacer ?")) drawnItems.clearLayers(); }
+        function clearAll() { if(confirm("Effacer tout ?")) { drawnItems.clearLayers(); document.getElementById('measure-display').innerHTML = "..."; } }
         
         function exportData() {
             const data = drawnItems.toGeoJSON();
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'export_projet.geojson';
-            a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = 'export_projet.geojson'; a.click();
         }
     </script>
 </body>
 </html>
+   
