@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Expert Mesures</title>
+    <title>Géo-Outil Pro - Mesures Dynamiques</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -12,14 +12,12 @@
     <style>
         :root {
             --sidebar-width: 320px;
-            --background: #FFF;
-            --onBackground: #242424;
             --accent: #0070F6;
             --dark: #1e272e;
             --light-grey: #F4F4F4;
         }
 
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; color: var(--onBackground); overflow: hidden; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; flex-shrink: 0; }
         .search-container { width: 70%; position: relative; }
@@ -33,20 +31,19 @@
         #map { flex: 1; z-index: 1; }
         
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 5px; border: 1px solid #ddd; word-wrap: break-word; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.95rem; margin-top: 5px; border: 1px solid #ddd; }
         .measure-highlight { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
         
         .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
         .btn-accent { background: var(--accent); }
-        .btn-accent:hover { background: #0056b3; }
-        .btn-danger { background: #e74c3c; margin-top: 5px; }
+        .btn-danger { background: #e74c3c; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: 15 Rue de Rivoli, Paris)..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher un lieu ou une adresse..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -55,17 +52,12 @@
         <aside id="sidebar">
             <div class="card">
                 <h3><i class="fa-solid fa-ruler-combined"></i> Mesures</h3>
-                <div id="measure-display" class="info-box">Sélectionnez un outil à droite pour mesurer.</div>
+                <div id="measure-display" class="info-box">Tracez une forme pour voir les mesures.</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-location-dot"></i> Dernier clic</h3>
-                <div id="address-display" class="info-box">Cliquez sur la carte</div>
-                <div id="coords-display" class="info-box">Lat: --, Lon: --</div>
-            </div>
-
-            <div class="card">
-                <h3><i class="fa-solid fa-palette"></i> Couleur du tracé</h3>
+                <h3><i class="fa-solid fa-palette"></i> Style</h3>
+                <label style="font-size: 12px; color: #666;">Couleur du tracé</label>
                 <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:40px; cursor:pointer; border:none; background: none;">
             </div>
 
@@ -81,39 +73,18 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
-        // --- 1. FONDS DE CARTE (BASES LAYERS) ---
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        });
+        // --- CONFIGURATION CARTE ---
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' });
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' });
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
 
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap © CARTO'
-        });
-
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
-        });
-
-        // Initialisation de la carte avec la vue Plan par défaut
-        const map = L.map('map', {
-            center: [46.6, 2.2],
-            zoom: 6,
-            layers: [osm]
-        });
-
-        const baseMaps = {
-            "Plan (Standard)": osm,
-            "Plan (Allégé)": light,
-            "Vue Aérienne": satellite
-        };
-
-        L.control.layers(baseMaps).addTo(map);
+        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [osm] });
+        L.control.layers({"Plan": osm, "Plan Allégé": light, "Satellite": satellite}).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
-        let searchMarker = null;
         let currentColor = "#0070F6";
 
-        // --- 2. RECHERCHE ---
+        // --- RECHERCHE ---
         const searchInput = document.getElementById('search-input');
         const searchResults = document.getElementById('search-results');
 
@@ -128,7 +99,6 @@
                         div.textContent = f.properties.label;
                         div.onclick = () => {
                             const [lon, lat] = f.geometry.coordinates;
-                            updateMapPoint(lat, lon, f.properties.label);
                             map.setView([lat, lon], 18);
                             searchResults.style.display = 'none';
                             searchInput.value = f.properties.label;
@@ -139,33 +109,37 @@
                 });
         });
 
-        // --- 3. MESURES ---
-        function calculateMeasurements(layer) {
+        // --- FONCTION DE CALCUL (DYNAMIQUE) ---
+        function updateMeasurements(layer) {
             let resultHtml = "";
+            
             if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                const areaStr = area > 10000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(1) + " m²";
+                const latlngs = layer.getLatLngs()[0];
+                const area = L.GeometryUtil.geodesicArea(latlngs);
+                const areaStr = area > 1000000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(2) + " m²";
                 resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span>`;
-            } else if (layer instanceof L.Polyline) {
+            } 
+            else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
                 const latlngs = layer.getLatLngs();
                 let distance = 0;
                 for (let i = 0; i < latlngs.length - 1; i++) {
                     distance += latlngs[i].distanceTo(latlngs[i+1]);
                 }
-                const distStr = distance > 1000 ? (distance/1000).toFixed(2) + " km" : distance.toFixed(1) + " m";
+                const distStr = distance > 1000 ? (distance/1000).toFixed(3) + " km" : distance.toFixed(2) + " m";
                 resultHtml = `Distance : <span class="measure-highlight">${distStr}</span>`;
             }
+
             if (resultHtml) {
                 document.getElementById('measure-display').innerHTML = resultHtml;
                 layer.bindPopup(resultHtml).openPopup();
             }
         }
 
-        // --- 4. DESSIN ---
+        // --- GESTION DU DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: { 
-                circle: false, circlemarker: false, marker: true,
+                circle: false, circlemarker: false, marker: false,
                 polyline: { shapeOptions: { color: currentColor } },
                 polygon: { shapeOptions: { color: currentColor } },
                 rectangle: { shapeOptions: { color: currentColor } }
@@ -173,13 +147,22 @@
         });
         map.addControl(drawControl);
 
+        // Création initiale
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
-            layer.setStyle({ color: currentColor, fillOpacity: 0.5 });
+            layer.setStyle({ color: currentColor });
             drawnItems.addLayer(layer);
-            calculateMeasurements(layer);
+            updateMeasurements(layer);
         });
 
+        // Mise à jour lors de la modification (Edition)
+        map.on(L.Draw.Event.EDITED, function (e) {
+            e.layers.eachLayer(function (layer) {
+                updateMeasurements(layer);
+            });
+        });
+
+        // Changement de couleur
         document.getElementById('color-picker').onchange = (e) => {
             currentColor = e.target.value;
             drawControl.setDrawingOptions({
@@ -189,40 +172,24 @@
             });
         };
 
-        // --- 5. UTILITAIRES ---
-        function updateMapPoint(lat, lon, label) {
-            if (searchMarker) map.removeLayer(searchMarker);
-            searchMarker = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
-            document.getElementById('address-display').textContent = label;
-            document.getElementById('coords-display').textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
-        }
-
-        map.on('click', function(e) {
-            if (e.originalEvent.target.id !== "map") return;
-            const {lat, lng} = e.latlng;
-            fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`)
-                .then(r => r.json()).then(data => {
-                    const label = data.features[0] ? data.features[0].properties.label : "Lieu sélectionné";
-                    updateMapPoint(lat, lng, label);
-                });
-        });
-
+        // --- ACTIONS ---
         function clearAll() {
-            if(confirm("Voulez-vous effacer tous vos tracés ?")) {
+            if(confirm("Effacer tous les tracés ?")) {
                 drawnItems.clearLayers();
-                document.getElementById('measure-display').innerHTML = "Tracez une ligne ou un polygone.";
+                document.getElementById('measure-display').innerHTML = "Tracez une forme.";
             }
         }
 
         function exportData() {
             const data = drawnItems.toGeoJSON();
-            if (data.features.length === 0) return alert("Rien à exporter.");
+            if (data.features.length === 0) return alert("Aucun tracé à exporter.");
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'export_plan.geojson';
+            a.download = 'mesures_terrain.geojson';
             a.click();
         }
     </script>
 </body>
 </html>
+ 
