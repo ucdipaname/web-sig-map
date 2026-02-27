@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil - Correctif Import</title>
+    <title>Géo-Outil Pro - Expert</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-measure/dist/leaflet-measure.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
     <style>
         :root { --sidebar-width: 300px; --dark: #1e272e; --accent: #0fbcf9; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; }
@@ -19,27 +20,41 @@
         #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: #f8f9fa; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; }
-        .card { background: white; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #eee; }
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; color: white; font-weight: bold; margin-top: 5px; }
+        .card { background: white; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; color: white; font-weight: bold; margin-top: 5px; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
         .btn-import { background: var(--accent); }
         .btn-export { background: #05c46b; }
         .btn-clear { background: #ff3f34; }
+        h3 { margin-top: 0; font-size: 1.1rem; color: var(--dark); }
+        .color-picker-container { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+        #color-picker { border: none; width: 40px; height: 40px; cursor: pointer; background: none; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
-        <input type="text" id="search-input" placeholder="Rechercher une adresse...">
+        <input type="text" id="search-input" placeholder="Rechercher une adresse (Entrée pour valider)...">
     </header>
 
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-file-import"></i> Importation GeoJSON</h3>
-                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">Charger un fichier .json / .geojson</button>
+                <h3><i class="fa-solid fa-file-import"></i> Importation</h3>
+                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">Charger GeoJSON</button>
                 <input type="file" id="file-input" style="display:none" accept=".geojson,.json">
             </div>
+            
             <div class="card">
+                <h3><i class="fa-solid fa-palette"></i> Style de dessin</h3>
+                <div class="color-picker-container">
+                    <input type="color" id="color-picker" value="#0fbcf9">
+                    <label for="color-picker">Couleur des tracés</label>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><i class="fa-solid fa-screwdriver-wrench"></i> Outils</h3>
                 <button class="btn btn-export" onclick="exportData()">Exporter le projet</button>
                 <button class="btn btn-clear" onclick="clearAllData()">Réinitialiser la carte</button>
             </div>
@@ -50,127 +65,115 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet-measure/dist/leaflet-measure.js"></script>
 
     <script>
-        // --- 1. CONFIGURATION INITIALE ---
-        const map = L.map('map').setView([46.6, 2.2], 6);
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        // --- 1. FONDS DE CARTE ---
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' });
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' });
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri' });
 
-        // Groupes de stockage
+        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [light] });
+
         const drawnItems = new L.FeatureGroup().addTo(map);
         const markerCluster = L.markerClusterGroup().addTo(map);
 
-        // --- 2. LOGIQUE D'IMPORTATION (CORRIGÉE) ---
+        // --- 2. CONTROLE DES COUCHES ---
+        L.control.layers({ "Plan Allégé": light, "Plan Classique": osm, "Vue Aérienne": satellite }, 
+                         { "Dessins": drawnItems, "Marqueurs": markerCluster }).addTo(map);
+
+        // --- 3. GESTION DES COULEURS ET DESSIN ---
+        let currentColor = "#0fbcf9";
+        let drawControl;
+
+        function updateDrawControl() {
+            if (drawControl) map.removeControl(drawControl);
+            
+            drawControl = new L.Control.Draw({
+                edit: { featureGroup: drawnItems },
+                draw: {
+                    polyline: { shapeOptions: { color: currentColor } },
+                    polygon: { shapeOptions: { color: currentColor, fillOpacity: 0.3 } },
+                    rectangle: { shapeOptions: { color: currentColor } },
+                    circle: { shapeOptions: { color: currentColor } },
+                    circlemarker: false
+                }
+            });
+            map.addControl(drawControl);
+        }
+
+        document.getElementById('color-picker').onchange = (e) => {
+            currentColor = e.target.value;
+            updateDrawControl(); // Met à jour l'outil pour le prochain dessin
+        };
+
+        updateDrawControl(); // Init au chargement
+
+        // Outil de mesure
+        const measureControl = new L.Control.Measure({ 
+            primaryLengthUnit: 'meters', 
+            localization: 'fr',
+            activeColor: currentColor 
+        });
+        measureControl.addTo(map);
+
+        // --- 4. LOGIQUE IMPORT/EXPORT & PERSISTANCE ---
         document.getElementById('file-input').onchange = function(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(event) {
                 try {
                     const geojson = JSON.parse(event.target.result);
-                    console.log("Données reçues :", geojson); // Debug console
-
-                    // On utilise L.geoJSON comme "moulinette" pour extraire les objets
-                    const tempLayer = L.geoJSON(geojson);
-                    
-                    if (tempLayer.getLayers().length === 0) {
-                        alert("Le fichier est vide ou n'est pas au format GeoJSON valide.");
-                        return;
-                    }
-
-                    tempLayer.eachLayer(layer => {
-                        // Extraction des propriétés pour la popup
-                        const props = layer.feature?.properties || {};
-                        const title = props.description || props.name || "Objet importé";
-                        layer.bindPopup(title);
-
-                        // Tri stratégique
-                        if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
-                            markerCluster.addLayer(layer);
-                        } else {
-                            drawnItems.addLayer(layer);
-                        }
+                    L.geoJSON(geojson).eachLayer(layer => {
+                        if (layer instanceof L.Marker) markerCluster.addLayer(layer);
+                        else drawnItems.addLayer(layer);
                     });
-
-                    // Forcer le zoom pour voir les données
-                    const bounds = L.featureGroup([drawnItems, markerCluster]).getBounds();
-                    if (bounds.isValid()) {
-                        map.fitBounds(bounds);
-                    } else {
-                        console.warn("Bounds non valides");
-                    }
-
+                    map.fitBounds(L.featureGroup([drawnItems, markerCluster]).getBounds());
                     saveToLocal();
-                    alert("Importation terminée avec succès !");
-                } catch (err) {
-                    console.error("Erreur d'import :", err);
-                    alert("Erreur critique : Le fichier n'est pas un JSON valide.");
-                }
+                } catch (err) { alert("Format invalide."); }
             };
             reader.readAsText(file);
         };
 
-        // --- 3. EXPORT & SAUVEGARDE LOCALE ---
         function exportData() {
-            const data = { 
-                type: "FeatureCollection", 
-                features: [
-                    ...drawnItems.toGeoJSON().features, 
-                    ...markerCluster.toGeoJSON().features
-                ] 
-            };
-            const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+            const data = { type: "FeatureCollection", features: [...drawnItems.toGeoJSON().features, ...markerCluster.toGeoJSON().features] };
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
             a.download = 'export_carte.geojson';
             a.click();
         }
 
         function saveToLocal() {
-            const data = {
-                drawn: drawnItems.toGeoJSON(),
-                clustered: markerCluster.toGeoJSON()
-            };
-            localStorage.setItem('mapData_Backup', JSON.stringify(data));
+            localStorage.setItem('mapData_Backup', JSON.stringify({ drawn: drawnItems.toGeoJSON(), clustered: markerCluster.toGeoJSON() }));
         }
 
         function loadFromLocal() {
             const saved = localStorage.getItem('mapData_Backup');
             if (!saved) return;
             const data = JSON.parse(saved);
-            // Rechargement manuel pour assurer la stabilité
-            if (data.drawn) L.geoJSON(data.drawn).eachLayer(l => drawnItems.addLayer(l));
+            if (data.drawn) L.geoJSON(data.drawn, { style: (f) => ({color: f.properties.color || currentColor}) }).eachLayer(l => drawnItems.addLayer(l));
             if (data.clustered) L.geoJSON(data.clustered).eachLayer(l => markerCluster.addLayer(l));
         }
 
-        function clearAllData() {
-            if(confirm("Effacer définitivement toutes les données ?")) {
-                drawnItems.clearLayers();
-                markerCluster.clearLayers();
-                localStorage.removeItem('mapData_Backup');
-            }
-        }
-
-        // --- 4. OUTILS DE DESSIN ---
-        const drawControl = new L.Control.Draw({
-            edit: { featureGroup: drawnItems },
-            draw: { circlemarker: false, circle: false }
-        });
-        map.addControl(drawControl);
+        function clearAllData() { if(confirm("Tout supprimer ?")) { drawnItems.clearLayers(); markerCluster.clearLayers(); localStorage.removeItem('mapData_Backup'); } }
 
         map.on(L.Draw.Event.CREATED, (e) => {
             const l = e.layer;
             if (e.layerType === 'marker') markerCluster.addLayer(l);
-            else drawnItems.addLayer(l);
+            else {
+                // On enregistre la couleur dans les propriétés pour l'export
+                if (!l.feature) l.feature = { type: "Feature", properties: {} };
+                l.feature.properties.color = currentColor;
+                drawnItems.addLayer(l);
+            }
             saveToLocal();
         });
 
-        // Recherche
         document.getElementById('search-input').onkeypress = (e) => {
             if (e.key === 'Enter') {
                 fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(e.target.value)}`)
-                .then(r => r.json()).then(d => { if(d[0]) map.setView([d[0].lat, d[0].lon], 15); });
+                .then(r => r.json()).then(d => { if(d[0]) map.setView([d[0].lat, d[0].lon], 16); });
             }
         };
 
