@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité - Pictos Dynamiques</title>
+    <title>Géo-Outil Sécurité - Version Intégrale</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -27,23 +27,18 @@
         .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .picto-selected { outline: 4px solid #ff9f43; transform: scale(1.05); }
 
-        /* Conteneur d'unité avec mise à l'échelle dynamique */
-        .unit-label-container { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            transition: transform 0.2s ease-out; /* Animation fluide lors du zoom */
-        }
-        
+        /* Style Pictos Dynamiques */
+        .unit-label-container { display: flex; flex-direction: column; align-items: center; transition: transform 0.2s ease-out; pointer-events: none; }
         .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; font-weight: bold; color: black; white-space: nowrap; }
 
-        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
-        .layer-active { background: #e3f2fd; border-color: #0070F6; }
-
+        /* UI Sidebar */
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; }
+        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
+        .layer-active { background: #e3f2fd; border-color: #0070F6; font-weight: bold; }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; text-decoration: none; }
         .btn-accent { background: var(--accent); }
+        .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -64,14 +59,29 @@
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-users"></i> Capacité</h3>
-                <div id="measure-display" style="background: #eef6ff; padding:10px; border-radius:6px; border:1px solid var(--accent); font-weight:bold;">Tracez pour mesurer.</div>
-                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin-top:10px;">
-                <small>Densité : <span id="ratio-val">3</span> pers/m²</small>
+                <h3><i class="fa-solid fa-paint-brush"></i> Style du tracé</h3>
+                <label>Couleur :</label>
+                <input type="color" id="style-color" value="#0070F6" style="width:100%; height:30px; margin-bottom:10px;">
+                <label>Épaisseur :</label>
+                <input type="range" id="style-weight" min="1" max="10" value="3" style="width:100%">
             </div>
 
             <div class="card">
-                <button class="btn btn-accent" onclick="exportAll()">Exporter Projet</button>
+                <h3><i class="fa-solid fa-users"></i> Capacité</h3>
+                <div id="measure-display" class="info-box">Tracez une zone.</div>
+                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin-top:10px;">
+                <small>Ratio : <span id="ratio-val">3</span> pers/m²</small>
+            </div>
+
+            <div class="card">
+                <h3><i class="fa-solid fa-file-import"></i> Outils</h3>
+                <label class="btn btn-accent" style="cursor:pointer;">
+                    <i class="fa-solid fa-upload"></i> Importer (JSON/ZIP/CSV)
+                    <input type="file" id="sig-import" style="display:none">
+                </label>
+                <button class="btn btn-accent" onclick="exportAll()" style="margin-top:10px;">
+                    <i class="fa-solid fa-download"></i> Exporter Projet
+                </button>
             </div>
         </aside>
 
@@ -86,9 +96,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
-        // --- CARTOGRAPHIE ---
+        // --- INITIALISATION CARTE ---
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
         const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
         const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [satellite] });
@@ -98,67 +109,11 @@
         let layersData = [];
         let activeLayerId = null;
         let selectedUnitType = null;
+        let lastPolygon = null;
 
         L.DomEvent.disableClickPropagation(document.getElementById('picto-box'));
 
-        // --- GESTION DU ZOOM DYNAMIQUE ---
-        // Cette fonction ajuste la taille visuelle de TOUS les marqueurs selon le zoom actuel
-        function updateIconSizes() {
-            const currentZoom = map.getZoom();
-            // Facteur d'échelle : on définit que le zoom 15 est la taille 1 (normale)
-            const scale = Math.pow(1.5, currentZoom - 15); 
-            
-            document.querySelectorAll('.unit-label-container').forEach(el => {
-                el.style.transform = `scale(${scale})`;
-            });
-        }
-
-        map.on('zoomend', updateIconSizes);
-
-        // --- UNITÉS ---
-        function selectUnit(event, type) {
-            if (event) event.stopPropagation();
-            selectedUnitType = type;
-            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
-            document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
-            map.getContainer().style.cursor = 'crosshair';
-        }
-
-        map.on('click', (e) => {
-            if (!selectedUnitType) return;
-            const name = prompt("Nom de l'unité ?", selectedUnitType);
-            const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
-            
-            if (name) {
-                const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
-                
-                // On crée l'icône
-                const icon = L.divIcon({
-                    className: 'custom-div-icon', // Classe vide pour éviter les styles par défaut
-                    html: `
-                        <div class="unit-label-container">
-                            <div class="unit-box" style="background:${color}">${selectedUnitType}</div>
-                            <div class="unit-info">${name}</div>
-                            <div class="unit-info" style="color:#d35400">${time}</div>
-                        </div>`,
-                    iconSize: [100, 50],
-                    iconAnchor: [50, 11]
-                });
-
-                const group = layersData.find(l => l.id === activeLayerId).group;
-                const marker = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
-                
-                marker.on('contextmenu', () => { if(confirm("Supprimer ?")) group.removeLayer(marker); });
-                
-                // On force la mise à l'échelle immédiate du nouveau picto
-                setTimeout(updateIconSizes, 10);
-            }
-            selectedUnitType = null;
-            map.getContainer().style.cursor = '';
-            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
-        });
-
-        // --- CALQUES & DESSIN (Même logique que précédemment) ---
+        // --- GESTION DES CALQUES ---
         function addNewLayer(name) {
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
@@ -173,10 +128,9 @@
 
         function toggleVisibility(id, event) {
             event.stopPropagation();
-            const layer = layersData.find(l => l.id === id);
-            layer.visible = !layer.visible;
-            if (layer.visible) map.addLayer(layer.group);
-            else map.removeLayer(layer.group);
+            const l = layersData.find(x => x.id === id);
+            l.visible = !l.visible;
+            if (l.visible) map.addLayer(l.group); else map.removeLayer(l.group);
             updateUI();
         }
 
@@ -190,10 +144,121 @@
             `).join('');
             
             if (window.dc) map.removeControl(window.dc);
-            const g = layersData.find(l => l.id === activeLayerId).group;
-            window.dc = new L.Control.Draw({ edit: { featureGroup: g }, draw: { marker:false, circle:false, circlemarker:false, polyline:true, polygon:true } });
+            const activeGroup = layersData.find(l => l.id === activeLayerId).group;
+            window.dc = new L.Control.Draw({
+                edit: { featureGroup: activeGroup },
+                draw: { marker: false, circle: false, circlemarker: false, polyline: true, polygon: true }
+            });
             map.addControl(window.dc);
         }
+
+        // --- DESSIN ET STYLE ---
+        map.on(L.Draw.Event.CREATED, (e) => {
+            const layer = e.layer;
+            const color = document.getElementById('style-color').value;
+            const weight = document.getElementById('style-weight').value;
+            
+            layer.setStyle({
+                color: color,
+                weight: parseInt(weight),
+                fillColor: color,
+                fillOpacity: 0.3
+            });
+
+            const group = layersData.find(l => l.id === activeLayerId).group;
+            group.addLayer(layer);
+
+            if (layer instanceof L.Polygon) {
+                lastPolygon = layer;
+                calculateCap();
+            }
+
+            layer.on('contextmenu', () => { if(confirm("Supprimer ?")) group.removeLayer(layer); });
+        });
+
+        // --- CAPACITÉ DYNAMIQUE ---
+        function calculateCap() {
+            const ratio = document.getElementById('ratio-slider').value;
+            document.getElementById('ratio-val').innerText = ratio;
+            if (lastPolygon) {
+                const area = L.GeometryUtil.geodesicArea(lastPolygon.getLatLngs()[0]);
+                const cap = Math.round(area * ratio);
+                document.getElementById('measure-display').innerHTML = `Surface : ${area.toFixed(1)} m²<br>Capacité : ${cap.toLocaleString()} pers.`;
+            }
+        }
+        document.getElementById('ratio-slider').addEventListener('input', calculateCap);
+
+        // --- PICTOS DYNAMIQUES (ZOOMABLE) ---
+        function updateIconSizes() {
+            const scale = Math.pow(1.5, map.getZoom() - 15);
+            document.querySelectorAll('.unit-label-container').forEach(el => {
+                el.style.transform = `scale(${scale})`;
+            });
+        }
+        map.on('zoomend', updateIconSizes);
+
+        function selectUnit(event, type) {
+            if (event) event.stopPropagation();
+            selectedUnitType = type;
+            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
+            document.getElementById(`btn-${type.toLowerCase()}`).classList.add('picto-selected');
+            map.getContainer().style.cursor = 'crosshair';
+        }
+
+        map.on('click', (e) => {
+            if (!selectedUnitType) return;
+            const name = prompt("Nom ?", selectedUnitType);
+            const time = prompt("Heure ?", "12:00");
+            if (name) {
+                const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
+                const icon = L.divIcon({
+                    className: 'custom-icon',
+                    html: `<div class="unit-label-container"><div class="unit-box" style="background:${color}">${selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info" style="color:#d35400">${time}</div></div>`,
+                    iconSize: [100, 50], iconAnchor: [50, 11]
+                });
+                const group = layersData.find(l => l.id === activeLayerId).group;
+                const marker = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
+                marker.on('contextmenu', () => group.removeLayer(marker));
+                setTimeout(updateIconSizes, 10);
+            }
+            selectedUnitType = null;
+            document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
+        });
+
+        // --- FONCTION IMPORT ---
+        document.getElementById('sig-import').onchange = function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            const group = layersData.find(l => l.id === activeLayerId).group;
+
+            reader.onload = async (ev) => {
+                try {
+                    if (file.name.endsWith('.zip')) {
+                        const geo = await shp(ev.target.result);
+                        L.geoJSON(geo, { onEachFeature: (f,l) => group.addLayer(l) });
+                    } else if (file.name.endsWith('.csv')) {
+                        const text = ev.target.result;
+                        const lines = text.split('\n').slice(1);
+                        for(let line of lines) {
+                            const cols = line.split(/[;,]/);
+                            if(cols[0]) {
+                                const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[0])}&limit=1`);
+                                const j = await r.json();
+                                if(j.features.length > 0) {
+                                    const [lo, la] = j.features[0].geometry.coordinates;
+                                    L.marker([la, lo]).addTo(group).bindPopup(cols[0]);
+                                }
+                            }
+                        }
+                    } else {
+                        const geo = JSON.parse(ev.target.result);
+                        L.geoJSON(geo, { onEachFeature: (f,l) => group.addLayer(l) });
+                    }
+                } catch (err) { alert("Erreur lors de l'importation."); }
+            };
+            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file);
+            else reader.readAsText(file);
+        };
 
         // --- RECHERCHE ---
         const sInput = document.getElementById('search-input');
@@ -209,7 +274,7 @@
         function promptNewLayer() { const n = prompt("Nom du calque :"); if(n) addNewLayer(n); }
         function exportAll() {
             let d = {}; layersData.forEach(l => d[l.name] = l.group.toGeoJSON());
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'plan.json'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'})); a.download = 'plan_securite.json'; a.click();
         }
 
         addNewLayer("Secteur Principal");
