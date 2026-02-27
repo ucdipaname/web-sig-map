@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Pro - Capacité & Plans</title>
+    <title>Géo-Outil Pro - Import & Capacité</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -11,7 +11,7 @@
 
     <style>
         :root {
-            --sidebar-width: 320px;
+            --sidebar-width: 340px;
             --accent: #0070F6;
             --dark: #1e272e;
             --light-grey: #F4F4F4;
@@ -22,34 +22,33 @@
         
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; flex-shrink: 0; }
         .search-container { width: 70%; position: relative; }
-        #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-        #search-results { position: absolute; top: 50px; left: 0; right: 0; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-height: 250px; overflow-y: auto; display: none; z-index: 3000; }
-        .result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; color: #333; }
-        .result-item:hover { background: var(--light-grey); color: var(--accent); }
+        #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; font-size: 14px; }
 
         #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; }
         
-        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.95rem; margin-top: 5px; border: 1px solid #ddd; line-height: 1.6; }
-        .measure-highlight { color: var(--accent); font-weight: bold; }
-        .people-highlight { color: var(--success); font-weight: bold; font-size: 1.2rem; }
+        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 5px; border: 1px solid #ddd; }
         
-        .setting-label { font-size: 13px; color: #666; font-weight: bold; display: block; margin-bottom: 8px; }
-        input[type="range"] { width: 100%; cursor: pointer; }
-
-        .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+        .setting-label { font-size: 12px; color: #666; font-weight: bold; display: block; margin-bottom: 5px; }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
         .btn-accent { background: var(--accent); }
+        .btn-import { background: #6c5ce7; }
         .btn-danger { background: #e74c3c; }
+        
+        input[type="file"] { display: none; }
+        .file-label { display: block; background: #eee; padding: 8px; border-radius: 4px; border: 1px dashed #ccc; text-align: center; cursor: pointer; font-size: 12px; margin-bottom: 5px; }
+        
+        .measure-highlight { color: var(--accent); font-weight: bold; }
+        .people-highlight { color: var(--success); font-weight: bold; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une ville, une rue..." autocomplete="off">
-            <div id="search-results"></div>
+            <input type="text" id="search-input" placeholder="Rechercher une adresse..." autocomplete="off">
         </div>
     </header>
 
@@ -57,22 +56,33 @@
         <aside id="sidebar">
             <div class="card">
                 <h3><i class="fa-solid fa-users"></i> Capacité</h3>
-                <div class="slider-container">
-                    <span class="setting-label">Ratio : <span id="ratio-val">3</span> pers / m²</span>
-                    <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3">
-                </div>
-                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-                <div id="measure-display" class="info-box">Tracez une surface...</div>
+                <span class="setting-label">Ratio : <span id="ratio-val">3</span> pers / m²</span>
+                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%">
+                <div id="measure-display" class="info-box">Tracez une forme...</div>
+            </div>
+
+            <div class="card">
+                <h3><i class="fa-solid fa-file-csv"></i> Import CSV</h3>
+                <span class="setting-label">Fichier avec colonne "adresse"</span>
+                <label class="file-label" for="csv-import">Choisir un CSV</label>
+                <input type="file" id="csv-import" accept=".csv">
+                <button class="btn btn-import" onclick="document.getElementById('csv-import').click()"><i class="fa-solid fa-upload"></i> Géocoder CSV</button>
+            </div>
+
+            <div class="card">
+                <h3><i class="fa-solid fa-map-location-dot"></i> Import SIG</h3>
+                <span class="setting-label">GeoJSON ou Shapefile (.zip)</span>
+                <label class="file-label" for="sig-import">Choisir un fichier</label>
+                <input type="file" id="sig-import" accept=".geojson,.json,.zip">
             </div>
 
             <div class="card">
                 <h3><i class="fa-solid fa-palette"></i> Style</h3>
-                <span class="setting-label">Couleur du tracé</span>
-                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:35px; cursor:pointer; border:none; background:none;">
+                <input type="color" id="color-picker" value="#0070F6" style="width:100%; height:30px; cursor:pointer; border:none;">
             </div>
 
-            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> GeoJSON</button>
-            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Effacer</button>
+            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter GeoJSON</button>
+            <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Effacer tout</button>
         </aside>
 
         <main id="map"></main>
@@ -81,58 +91,31 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shpjs/4.0.2/shp.min.js"></script> <script>
+        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
-    <script>
-        // --- COUCHES DE CARTE ---
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' });
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' });
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
-
-        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [light] }); // Par défaut sur Plan Allégé
-        
-        const baseMaps = {
-            "Plan Allégé": light,
-            "Standard (OSM)": osm,
-            "Satellite": satellite
-        };
-        L.control.layers(baseMaps).addTo(map);
+        const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [light] });
+        L.control.layers({"Plan Allégé": light, "Standard": osm, "Satellite": satellite}).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
-        let currentColor = "#0070F6";
         let currentRatio = 3;
-
-        // --- GESTION DU RATIO ---
-        const ratioSlider = document.getElementById('ratio-slider');
-        const ratioVal = document.getElementById('ratio-val');
-
-        ratioSlider.oninput = function() {
-            currentRatio = this.value;
-            ratioVal.innerText = currentRatio;
-            drawnItems.eachLayer(layer => updateMeasurements(layer));
-        };
+        let currentColor = "#0070F6";
 
         // --- CALCULS ---
         function updateMeasurements(layer) {
             let resultHtml = "";
-            
             if (layer instanceof L.Polygon) {
-                const latlngs = layer.getLatLngs()[0];
-                const area = L.GeometryUtil.geodesicArea(latlngs);
-                const areaStr = area > 1000000 ? (area / 1000000).toFixed(3) + " km²" : area.toFixed(2) + " m²";
-                const nbPersonnes = Math.floor(area * currentRatio);
-                
-                resultHtml = `Surface : <span class="measure-highlight">${areaStr}</span><br>`;
-                resultHtml += `Nombre de personnes : <span class="people-highlight">${nbPersonnes.toLocaleString()}</span>`;
-            } 
-            else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                const nbPers = Math.floor(area * currentRatio);
+                resultHtml = `Surface: <span class="measure-highlight">${area.toFixed(2)} m²</span><br>Pers: <span class="people-highlight">${nbPers.toLocaleString()}</span>`;
+            } else if (layer instanceof L.Polyline) {
                 const latlngs = layer.getLatLngs();
-                let distance = 0;
-                for (let i = 0; i < latlngs.length - 1; i++) {
-                    distance += latlngs[i].distanceTo(latlngs[i+1]);
-                }
-                resultHtml = `Distance : <span class="measure-highlight">${distance.toFixed(2)} m</span>`;
+                let d = 0;
+                for(let i=0; i<latlngs.length-1; i++) d += latlngs[i].distanceTo(latlngs[i+1]);
+                resultHtml = `Distance: <span class="measure-highlight">${d.toFixed(2)} m</span>`;
             }
-
             if (resultHtml) {
                 document.getElementById('measure-display').innerHTML = resultHtml;
                 layer.bindPopup(resultHtml).openPopup();
@@ -142,71 +125,80 @@
         // --- DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
-            draw: { 
-                circle: false, marker: false, circlemarker: false,
-                polyline: { shapeOptions: { color: currentColor } },
-                polygon: { shapeOptions: { color: currentColor } },
-                rectangle: { shapeOptions: { color: currentColor } }
-            }
+            draw: { circle:false, marker:false, circlemarker:false, polyline:{shapeOptions:{color:currentColor}}, polygon:{shapeOptions:{color:currentColor}} }
         });
         map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, e => { drawnItems.addLayer(e.layer); updateMeasurements(e.layer); });
+        map.on(L.Draw.Event.EDITED, e => e.layers.eachLayer(l => updateMeasurements(l)));
 
-        map.on(L.Draw.Event.CREATED, (e) => {
-            e.layer.setStyle({ color: currentColor });
-            drawnItems.addLayer(e.layer);
-            updateMeasurements(e.layer);
+        // --- MODULE IMPORT CSV (GÉOCODAGE) ---
+        document.getElementById('csv-import').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const lines = event.target.result.split('\n');
+                const headers = lines[0].toLowerCase().split(',');
+                const addrIdx = headers.findIndex(h => h.includes('adresse'));
+
+                if(addrIdx === -1) return alert("Colonne 'adresse' non trouvée.");
+
+                for(let i=1; i<lines.length; i++) {
+                    const cols = lines[i].split(',');
+                    if(cols[addrIdx]) {
+                        await geocodeAndPlace(cols[addrIdx]);
+                    }
+                }
+            };
+            reader.readAsText(file);
         });
 
-        map.on(L.Draw.Event.EDITED, (e) => {
-            e.layers.eachLayer(layer => updateMeasurements(layer));
-        });
-
-        // --- RECHERCHE ---
-        const searchInput = document.getElementById('search-input');
-        const searchResults = document.getElementById('search-results');
-
-        searchInput.addEventListener('input', function() {
-            if (this.value.length < 3) { searchResults.style.display = 'none'; return; }
-            fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`)
-                .then(r => r.json()).then(data => {
-                    searchResults.innerHTML = '';
-                    data.features.forEach(f => {
-                        const div = document.createElement('div');
-                        div.className = 'result-item';
-                        div.textContent = f.properties.label;
-                        div.onclick = () => {
-                            map.setView([f.geometry.coordinates[1], f.geometry.coordinates[0]], 18);
-                            searchResults.style.display = 'none';
-                            searchInput.value = f.properties.label;
-                        };
-                        searchResults.appendChild(div);
-                    });
-                    searchResults.style.display = 'block';
-                });
-        });
-
-        document.getElementById('color-picker').onchange = (e) => {
-            currentColor = e.target.value;
-            drawControl.setDrawingOptions({
-                polyline: { shapeOptions: { color: currentColor } },
-                polygon: { shapeOptions: { color: currentColor } }
-            });
-        };
-
-        function clearAll() {
-            if(confirm("Effacer tout ?")) {
-                drawnItems.clearLayers();
-                document.getElementById('measure-display').innerHTML = "Tracez une surface...";
-            }
+        async function geocodeAndPlace(addr) {
+            try {
+                const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(addr)}&limit=1`);
+                const d = await r.json();
+                if(d.features.length > 0) {
+                    const [lon, lat] = d.features[0].geometry.coordinates;
+                    const marker = L.marker([lat, lon]).addTo(drawnItems);
+                    marker.bindPopup(`<b>Importé :</b><br>${addr}`);
+                }
+            } catch(e) { console.error("Erreur géocodage", e); }
         }
 
+        // --- MODULE IMPORT SIG (GEOJSON / SHP) ---
+        document.getElementById('sig-import').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            if (file.name.endsWith('.zip')) {
+                reader.onload = async function(event) {
+                    const geojson = await shp(event.target.result);
+                    L.geoJSON(geojson, { onEachFeature: (f, l) => drawnItems.addLayer(l) });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.onload = function(event) {
+                    const geojson = JSON.parse(event.target.result);
+                    L.geoJSON(geojson, { onEachFeature: (f, l) => drawnItems.addLayer(l) });
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // --- REGLAGES & ACTIONS ---
+        document.getElementById('ratio-slider').oninput = function() {
+            currentRatio = this.value;
+            document.getElementById('ratio-val').innerText = this.value;
+            drawnItems.eachLayer(l => updateMeasurements(l));
+        };
+
+        function clearAll() { if(confirm("Tout effacer ?")) drawnItems.clearLayers(); }
+        
         function exportData() {
             const data = drawnItems.toGeoJSON();
-            if (data.features.length === 0) return;
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'plan_capacite.geojson';
+            a.download = 'export_projet.geojson';
             a.click();
         }
     </script>
