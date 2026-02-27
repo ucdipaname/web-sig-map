@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité Pro - Final</title>
+    <title>Géo-Outil Sécurité Pro - Pictos Complets</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -22,9 +22,12 @@
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
         .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .picto-selected { outline: 4px solid #ff9f43; transform: scale(1.05); }
+        
+        /* Style Pictos sur Carte */
         .unit-label-container { display: flex; flex-direction: column; align-items: center; transition: transform 0.1s linear; pointer-events: none; }
-        .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
-        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; font-weight: bold; color: black; white-space: nowrap; }
+        .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 1px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
+        
         .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
         .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
         .layer-active { background: #e3f2fd; border-color: #0070F6; font-weight: bold; }
@@ -60,7 +63,7 @@
 
             <div class="card">
                 <h3><i class="fa-solid fa-users"></i> Capacité</h3>
-                <div id="measure-display" class="info-box">Sélectionnez une zone.</div>
+                <div id="measure-display" class="info-box">Tracez une zone.</div>
                 <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%; margin-top:10px;">
                 <small>Ratio : <span id="ratio-val">3</span> pers/m²</small>
             </div>
@@ -108,10 +111,7 @@
             setActiveLayer(id);
         }
 
-        function setActiveLayer(id) {
-            activeLayerId = id;
-            updateUI();
-        }
+        function setActiveLayer(id) { activeLayerId = id; updateUI(); }
 
         function updateUI() {
             const list = document.getElementById('layers-list');
@@ -138,7 +138,6 @@
             updateUI();
         }
 
-        // --- CALCULS ---
         function updateMeasure(poly) {
             if (!poly || !(poly instanceof L.Polygon)) return;
             const ratio = document.getElementById('ratio-slider').value;
@@ -178,20 +177,29 @@
 
         map.on('click', (e) => {
             if (!selectedUnitType) return;
-            const name = prompt("Nom ?");
+            const name = prompt("Nom de l'unité ?", selectedUnitType);
+            const time = prompt("Heure de mise en place ?", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
+            
             if (name) {
                 const color = (selectedUnitType === 'CRS') ? '#0000FF' : '#5D4037';
                 const icon = L.divIcon({
                     className: 'custom-icon',
-                    html: `<div class="unit-label-container"><div class="unit-box" style="background:${color}">${selectedUnitType}</div><div class="unit-info">${name}</div></div>`,
-                    iconSize: [100, 40], iconAnchor: [50, 11]
+                    html: `
+                        <div class="unit-label-container">
+                            <div class="unit-box" style="background:${color}">${selectedUnitType}</div>
+                            <div class="unit-info">${name}</div>
+                            <div class="unit-info" style="color:#d35400">${time}</div>
+                        </div>`,
+                    iconSize: [100, 60], iconAnchor: [50, 11]
                 });
                 const group = layersData.find(l => l.id === activeLayerId).group;
-                L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
+                const marker = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
+                marker.on('contextmenu', () => { if(confirm("Supprimer l'unité ?")) group.removeLayer(marker); });
                 setTimeout(updateIconSizes, 10);
             }
             selectedUnitType = null;
             document.querySelectorAll('.picto-item').forEach(el => el.classList.remove('picto-selected'));
+            map.getContainer().style.cursor = '';
         });
 
         // --- IMPORT CSV / SHP / JSON ---
@@ -205,12 +213,8 @@
                     const geo = await shp(ev.target.result);
                     L.geoJSON(geo, { onEachFeature: (f,l) => addPopupWithAttrs(f,l,group) });
                 } 
-                else if (file.name.endsWith('.csv')) {
-                    processCSV(ev.target.result, group);
-                } 
-                else {
-                    L.geoJSON(JSON.parse(ev.target.result), { onEachFeature: (f,l) => addPopupWithAttrs(f,l,group) });
-                }
+                else if (file.name.endsWith('.csv')) { processCSV(ev.target.result, group); } 
+                else { L.geoJSON(JSON.parse(ev.target.result), { onEachFeature: (f,l) => addPopupWithAttrs(f,l,group) }); }
             };
             if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file); else reader.readAsText(file);
         };
@@ -227,7 +231,6 @@
         async function processCSV(csvText, group) {
             const lines = csvText.split(/\r?\n/);
             const headers = lines[0].split(/[;,]/).map(h => h.trim().toLowerCase());
-            
             const latIdx = headers.findIndex(h => h.includes('lat'));
             const lngIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
             const adrIdx = headers.findIndex(h => h.includes('adr'));
@@ -235,19 +238,14 @@
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].split(/[;,]/);
                 if (cols.length < headers.length) continue;
-
                 let lat, lng;
                 if (latIdx !== -1 && lngIdx !== -1) {
-                    lat = parseFloat(cols[latIdx]);
-                    lng = parseFloat(cols[lngIdx]);
+                    lat = parseFloat(cols[latIdx]); lng = parseFloat(cols[lngIdx]);
                 } else if (adrIdx !== -1) {
                     const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[adrIdx])}&limit=1`);
                     const j = await r.json();
-                    if (j.features && j.features.length > 0) {
-                        [lng, lat] = j.features[0].geometry.coordinates;
-                    }
+                    if (j.features && j.features.length > 0) [lng, lat] = j.features[0].geometry.coordinates;
                 }
-
                 if (lat && lng) {
                     let popup = `<table class="attr-table">`;
                     headers.forEach((h, idx) => popup += `<tr><td><b>${h}</b></td><td>${cols[idx]}</td></tr>`);
@@ -256,7 +254,6 @@
             }
         }
 
-        // --- RECHERCHE ET EXPORT ---
         const sInput = document.getElementById('search-input');
         const sRes = document.getElementById('search-results');
         sInput.addEventListener('input', async () => {
