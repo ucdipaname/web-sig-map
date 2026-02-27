@@ -3,63 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Sécurité Pro - Format 80x100</title>
+    <title>Géo-Outil Sécurité Pro - Expert</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
-        :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; }
+        :root { --sidebar-width: 350px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; --success: #27ae60; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 5000; padding: 0 20px; }
-        .search-container { width: 60%; position: relative; z-index: 6000; }
+        .search-container { width: 60%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; }
-        #search-results { position: absolute; top: 55px; left: 0; right: 0; background: white; border-radius: 8px; z-index: 9999; max-height: 250px; overflow-y: auto; display: none; border: 1px solid #ccc; }
+        #search-results { position: absolute; top: 55px; left: 0; right: 0; background: white; border-radius: 8px; z-index: 9999; max-height: 250px; overflow-y: auto; display: none; border: 1px solid #ccc; color: black; }
 
         #container { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; position: relative; }
 
-        /* Pictos */
-        #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
-        .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        
-        .unit-label-container { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-        .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
-        .unit-cie { border-radius: 50%; width: 35px; height: 35px; }
-        .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; }
-        .unit-brav span { transform: rotate(-45deg); }
-        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
-        .text-annotation { background: transparent; border: none; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; font-size: 14px; white-space: nowrap; }
-
-        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
-        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 5px; border-radius: 5px; border: 1px solid #ddd; background: white; cursor: pointer; }
-        .layer-active { background: #e3f2fd; border-color: #0070F6; font-weight: bold; }
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 5px; font-size: 0.85rem; text-align: center; display: block; }
+        /* Interface & Boutons */
+        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 8px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; }
+        .btn:hover { opacity: 0.9; }
         .btn-accent { background: var(--accent); }
-        .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; margin-top: 5px; color: #0056b3; font-size: 0.85rem; }
+        .btn-fullscreen { background: #2c3e50; }
+        .btn-export { background: var(--success); }
 
-        /* CADRE 100x80 (Paysage) */
-        #export-frame {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 1000px; height: 800px; border: 5px dashed #f39c12;
-            z-index: 4000; pointer-events: none; display: none;
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
-        }
+        /* Table Attributaire Style */
+        .attr-table { font-size: 12px; border-collapse: collapse; width: 100%; min-width: 200px; margin-top: 5px; }
+        .attr-table tr:nth-child(even) { background: #f8f9fa; }
+        .attr-table td { border-bottom: 1px solid #eee; padding: 6px; color: #333; }
+        .attr-table b { color: var(--accent); }
+
+        /* Pictogrammes */
+        #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .picto-item { width: 55px; height: 32px; color: white; border: 2px solid black; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        .attr-table { font-size: 11px; border-collapse: collapse; width: 100%; }
-        .attr-table td { border-bottom: 1px solid #eee; padding: 3px; }
+        /* Cadre Export */
+        #export-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 1000px; height: 800px; border: 4px dashed #f39c12; z-index: 4000; pointer-events: none; display: none; box-shadow: 0 0 0 9999px rgba(0,0,0,0.4); }
+
+        /* Unités sur carte */
+        .unit-label-container { display: flex; flex-direction: column; align-items: center; }
+        .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
+        .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: Place de la République)..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -67,72 +61,139 @@
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-camera"></i> Format 80x100 cm</h3>
-                <button class="btn btn-accent" onclick="toggleFrame()" style="background:#f39c12">Afficher Cadre 100x80</button>
-                <button class="btn btn-export" onclick="exportToImage()" style="background:#27ae60; margin-top:10px;">Exporter Image HD</button>
-            </div>
-
-            <div class="card">
-                <h3><i class="fa-solid fa-ruler"></i> Mesures & Aide</h3>
-                <div id="measure-display" class="info-box">Double-cliquez pour finir une ligne.</div>
-                <div style="margin-top:10px;">
-                    <small>Ratio : <span id="ratio-val">3</span> pers/m²</small>
-                    <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%;">
-                </div>
-            </div>
-
-            <div class="card">
-                <h3><i class="fa-solid fa-palette"></i> Couleur du tracé</h3>
-                <input type="color" id="style-color" value="#0070F6" style="width:100%; height:40px; border:none; cursor:pointer; border-radius:5px;">
-                <button class="btn btn-accent" style="background:#8e44ad; margin-top:10px;" onclick="selectUnit(null, 'TEXT')">
-                    <i class="fa-solid fa-font"></i> Ajouter Texte Libre
+                <h3><i class="fa-solid fa-desktop"></i> Affichage</h3>
+                <button class="btn btn-fullscreen" onclick="toggleFullScreen()">
+                    <i class="fa-solid fa-expand"></i> Mode Plein Écran
                 </button>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-layer-group"></i> Calques</h3>
-                <div id="layers-list"></div>
-                <button class="btn btn-accent" onclick="promptNewLayer()">+ Nouveau Calque</button>
+                <h3><i class="fa-solid fa-file-import"></i> Import Données SIG</h3>
+                <p style="font-size: 0.8rem; color: #666;">Importez un <b>CSV</b> (avec colonnes lat/lon) ou un <b>Shapefile (.zip)</b>.</p>
+                <label class="btn btn-accent" style="cursor:pointer;">
+                    <i class="fa-solid fa-upload"></i> Charger CSV ou SHP (.zip)
+                    <input type="file" id="sig-import" style="display:none" accept=".csv, .zip">
+                </label>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-file-import"></i> Import CSV/SHP</h3>
-                <label class="btn btn-accent" style="cursor:pointer;">
-                    Charger Fichier
-                    <input type="file" id="sig-import" style="display:none">
-                </label>
+                <h3><i class="fa-solid fa-camera"></i> Export HD</h3>
+                <button class="btn" style="background:#f39c12" onclick="toggleFrame()">Visualiser Cadre 80x100</button>
+                <button class="btn btn-export" onclick="exportToImage()">Exporter l'image finale</button>
+            </div>
+
+            <div class="card">
+                <h3><i class="fa-solid fa-layer-group"></i> Calques de travail</h3>
+                <div id="layers-list"></div>
+                <button class="btn btn-accent" onclick="promptNewLayer()">+ Nouveau Calque</button>
             </div>
         </aside>
 
         <main id="map">
             <div id="export-frame"></div>
             <div id="picto-box">
-                <div class="picto-item" id="btn-crs" style="background:#0000FF" onclick="selectUnit(event, 'CRS')">CRS</div>
-                <div class="picto-item" id="btn-gm" style="background:#5D4037" onclick="selectUnit(event, 'GM')">GM</div>
-                <div class="picto-item" id="btn-cie" style="background:#FF0000; border-radius:50%" onclick="selectUnit(event, 'CIE')">CIE</div>
-                <div class="picto-item" id="btn-brav" style="background:#008000; transform:scale(0.8) rotate(45deg)" onclick="selectUnit(event, 'BRAV')"><span style="transform:rotate(-45deg)">BRAV</span></div>
+                <div class="picto-item" style="background:blue" onclick="selectUnit(event, 'CRS')">CRS</div>
+                <div class="picto-item" style="background:#5D4037" onclick="selectUnit(event, 'GM')">GM</div>
+                <div class="picto-item" style="background:red; border-radius:50%" onclick="selectUnit(event, 'CIE')">CIE</div>
+                <div class="picto-item" style="background:green; transform:rotate(45deg)" onclick="selectUnit(event, 'BRAV')"><span style="transform:rotate(-45deg)">BRAV</span></div>
             </div>
         </main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
-        // --- INITIALISATION ---
+        // --- INITIALISATION CARTE ---
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { crossOrigin: 'Anonymous' });
-        const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { crossOrigin: 'Anonymous' });
-        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [satellite] });
-        L.control.layers({ "Satellite": satellite, "OSM Allégé": osmLight }).addTo(map);
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: 'Anonymous' });
+        
+        const map = L.map('map', { 
+            center: [48.8566, 2.3522], 
+            zoom: 13, 
+            layers: [satellite] 
+        });
+
+        L.control.layers({ "Satellite": satellite, "Plan": osm }).addTo(map);
 
         let layersData = [];
         let activeLayerId = null;
         let selectedUnitType = null;
-        let lastSelectedShape = null;
 
-        L.DomEvent.disableClickPropagation(document.getElementById('picto-box'));
+        // --- FONCTIONS TABLE ATTRIBUTAIRE ---
+        function createAttrTable(props) {
+            let table = `<table class="attr-table">`;
+            for (let key in props) {
+                if (props[key] && typeof props[key] !== 'object') {
+                    table += `<tr><td><b>${key}</b></td><td>${props[key]}</td></tr>`;
+                }
+            }
+            return table + `</table>`;
+        }
+
+        // --- GESTION DU PLEIN ÉCRAN ---
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        // --- IMPORT CSV & SHAPEFILE ---
+        document.getElementById('sig-import').onchange = function(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            const group = layersData.find(l => l.id === activeLayerId).group;
+
+            reader.onload = async (ev) => {
+                // CAS CSV
+                if (file.name.endsWith('.csv')) {
+                    const text = ev.target.result;
+                    const lines = text.split(/\r?\n/);
+                    const sep = text.includes(';') ? ';' : ',';
+                    const headers = lines[0].split(sep).map(h => h.trim());
+                    
+                    const latIdx = headers.findIndex(h => h.toLowerCase().match(/lat|latitude/));
+                    const lngIdx = headers.findIndex(h => h.toLowerCase().match(/lon|lng|longitude/));
+
+                    if(latIdx === -1 || lngIdx === -1) {
+                        alert("Colonnes Latitude/Longitude non trouvées.");
+                        return;
+                    }
+
+                    lines.slice(1).forEach(line => {
+                        const cols = line.split(sep);
+                        if (cols.length > latIdx && !isNaN(parseFloat(cols[latIdx]))) {
+                            let props = {};
+                            headers.forEach((h, i) => { props[h] = cols[i]; });
+                            L.marker([parseFloat(cols[latIdx]), parseFloat(cols[lngIdx])])
+                             .addTo(group)
+                             .bindPopup(createAttrTable(props));
+                        }
+                    });
+                } 
+                // CAS SHAPEFILE (ZIP)
+                else if (file.name.endsWith('.zip')) {
+                    try {
+                        const geo = await shp(ev.target.result);
+                        L.geoJSON(geo, {
+                            onEachFeature: (feature, layer) => {
+                                if (feature.properties) layer.bindPopup(createAttrTable(feature.properties));
+                            }
+                        }).addTo(group);
+                    } catch (err) {
+                        alert("Erreur Shapefile : vérifiez que le .zip contient .shp, .dbf et .shx");
+                    }
+                }
+            };
+
+            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file);
+            else reader.readAsText(file);
+        };
 
         // --- GESTION DES CALQUES ---
         function addNewLayer(name) {
@@ -142,132 +203,46 @@
             setActiveLayer(id);
         }
 
-        function setActiveLayer(id) { activeLayerId = id; updateUI(); }
-
-        function toggleVisibility(id, event) {
-            event.stopPropagation();
-            const l = layersData.find(x => x.id === id);
-            l.visible = !l.visible;
-            if (l.visible) map.addLayer(l.group); else map.removeLayer(l.group);
+        function setActiveLayer(id) {
+            activeLayerId = id;
             updateUI();
         }
 
         function updateUI() {
             const list = document.getElementById('layers-list');
             list.innerHTML = layersData.map(l => `
-                <div class="layer-item ${l.id === activeLayerId ? 'layer-active' : ''}" onclick="setActiveLayer(${l.id})">
-                    <span>${l.name}</span>
-                    <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'}" onclick="toggleVisibility(${l.id}, event)"></i>
+                <div class="layer-item" style="padding:8px; border:1px solid #ccc; margin-top:5px; cursor:pointer; background:${l.id === activeLayerId ? '#e3f2fd' : 'white'}">
+                    <span onclick="setActiveLayer(${l.id})">${l.name}</span>
                 </div>
             `).join('');
             
-            if (window.dc) map.removeControl(window.dc);
+            // Update Draw Control
+            if (window.drawControl) map.removeControl(window.drawControl);
             const activeGroup = layersData.find(l => l.id === activeLayerId).group;
-            window.dc = new L.Control.Draw({ 
-                edit: { featureGroup: activeGroup }, 
-                draw: { marker: false, circle: false, circlemarker: false, polyline: { shapeOptions: { color: document.getElementById('style-color').value } }, polygon: { shapeOptions: { color: document.getElementById('style-color').value } } } 
+            window.drawControl = new L.Control.Draw({
+                edit: { featureGroup: activeGroup },
+                draw: { circle:false, marker:false, circlemarker:false }
             });
-            map.addControl(window.dc);
+            map.addControl(window.drawControl);
         }
 
-        // --- CALCULS ---
-        function refreshMeasure(layer) {
-            if (!layer) return;
-            const ratio = document.getElementById('ratio-slider').value;
-            document.getElementById('ratio-val').innerText = ratio;
-
-            if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                document.getElementById('measure-display').innerHTML = `Surface : <b>${area.toFixed(0)} m²</b><br>Capacité : <b>${Math.round(area * ratio).toLocaleString()} pers.</b>`;
-            } else if (layer instanceof L.Polyline) {
-                const dist = L.GeometryUtil.accumulatedDistance(layer.getLatLngs());
-                document.getElementById('measure-display').innerHTML = `Distance : <b>${dist.toFixed(1)} m</b>`;
-            }
+        // --- EXPORT IMAGE ---
+        function toggleFrame() {
+            const f = document.getElementById('export-frame');
+            f.style.display = (f.style.display === 'block') ? 'none' : 'block';
         }
-
-        // --- EVENEMENTS DESSIN ---
-        map.on(L.Draw.Event.CREATED, (e) => {
-            const layer = e.layer;
-            const userColor = document.getElementById('style-color').value;
-            layer.setStyle({ color: userColor, fillColor: userColor, fillOpacity: 0.3, weight: 3 });
-            
-            layersData.find(l => l.id === activeLayerId).group.addLayer(layer);
-            lastSelectedShape = layer;
-            refreshMeasure(layer);
-            layer.on('click', () => { lastSelectedShape = layer; refreshMeasure(layer); });
-        });
-
-        map.on(L.Draw.Event.EDITED, (e) => {
-            e.layers.eachLayer(l => { lastSelectedShape = l; refreshMeasure(l); });
-        });
-
-        document.getElementById('ratio-slider').oninput = () => refreshMeasure(lastSelectedShape);
-        document.getElementById('style-color').oninput = updateUI; // Met à jour l'outil de dessin avec la nouvelle couleur
-
-        // --- PICTOS & TEXTE ---
-        function selectUnit(event, type) { if (event) event.stopPropagation(); selectedUnitType = type; map.getContainer().style.cursor = 'crosshair'; }
-
-        map.on('click', (e) => {
-            if (!selectedUnitType) return;
-            const group = layersData.find(l => l.id === activeLayerId).group;
-
-            if (selectedUnitType === 'TEXT') {
-                const txt = prompt("Texte :");
-                if (txt) L.marker(e.latlng, {icon: L.divIcon({ className:'text-annotation', html:txt, iconSize:[200,20] }), draggable:true}).addTo(group);
-            } else {
-                const name = prompt("Nom ?"), time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-                if (name) {
-                    let c = selectedUnitType==='CRS'?'blue':(selectedUnitType==='GM'?'#5D4037':(selectedUnitType==='CIE'?'red':'green'));
-                    let extra = selectedUnitType==='CIE'?'unit-cie':(selectedUnitType==='BRAV'?'unit-brav':'');
-                    let html = `<div class="unit-label-container"><div class="unit-box ${extra}" style="background:${c}">${selectedUnitType==='BRAV'?'<span>BRAV</span>':selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
-                    L.marker(e.latlng, {icon: L.divIcon({ className:'custom-icon', html:html, iconSize:[100,60] }), draggable:true}).addTo(group);
-                }
-            }
-            selectedUnitType = null; map.getContainer().style.cursor = '';
-        });
-
-        // --- IMPORT CSV AVEC ATTRIBUTS ---
-        document.getElementById('sig-import').onchange = function(e) {
-            const file = e.target.files[0], reader = new FileReader();
-            const group = layersData.find(l => l.id === activeLayerId).group;
-
-            reader.onload = async (ev) => {
-                if (file.name.endsWith('.csv')) {
-                    const lines = ev.target.result.split(/\r?\n/), sep = ev.target.result.includes(';') ? ';' : ',';
-                    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
-                    const latIdx = headers.findIndex(h => h.includes('lat')), lngIdx = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
-
-                    lines.slice(1).forEach(line => {
-                        const cols = line.split(sep);
-                        if (cols.length > latIdx && !isNaN(parseFloat(cols[latIdx]))) {
-                            let table = `<table class="attr-table">`;
-                            headers.forEach((h, i) => { if(cols[i]) table += `<tr><td><b>${h}</b></td><td>${cols[i]}</td></tr>`; });
-                            L.marker([parseFloat(cols[latIdx]), parseFloat(cols[lngIdx])]).addTo(group).bindPopup(table + `</table>`);
-                        }
-                    });
-                } else if (file.name.endsWith('.zip')) {
-                    const geo = await shp(ev.target.result);
-                    L.geoJSON(geo).addTo(group);
-                }
-            };
-            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file); else reader.readAsText(file);
-        };
-
-        // --- EXPORT & RECHERCHE ---
-        function toggleFrame() { const f = document.getElementById('export-frame'); f.style.display = (f.style.display === 'block') ? 'none' : 'block'; }
 
         function exportToImage() {
             document.getElementById('export-frame').style.display = 'none';
-            document.getElementById('picto-box').style.display = 'none';
             html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
                 const link = document.createElement('a');
-                link.download = 'plan_80x100.jpg';
+                link.download = 'plan_intervention.jpg';
                 link.href = canvas.toDataURL('image/jpeg', 0.9);
                 link.click();
-                document.getElementById('picto-box').style.display = 'flex';
             });
         }
 
+        // --- RECHERCHE ADRESSE ---
         document.getElementById('search-input').oninput = async function() {
             if(this.value.length < 3) return;
             const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`);
@@ -277,8 +252,10 @@
             res.style.display = 'block';
         };
 
-        function promptNewLayer() { let n = prompt("Nom ?"); if(n) addNewLayer(n); }
-        addNewLayer("Secteur Initial");
+        function promptNewLayer() { let n = prompt("Nom du calque ?"); if(n) addNewLayer(n); }
+        
+        // Init
+        addNewLayer("Secteur Principal");
     </script>
 </body>
 </html>
