@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Outil Expert Final</title>
+    <title>Géo-Outil Expert - Import CSV Robuste</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -12,12 +12,10 @@
     <style>
         :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; --success: #27ae60; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        /* Top Bar & Search */
         #top-bar { height: 60px; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 0 20px; }
         .search-container { width: 60%; position: relative; }
         #search-input { width: 100%; padding: 12px 20px; border-radius: 25px; border: none; outline: none; }
-        #search-results { position: absolute; top: 50px; left: 0; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 3000; max-height: 300px; overflow-y: auto; display: none; }
+        #search-results { position: absolute; top: 50px; left: 0; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 3000; max-height: 250px; overflow-y: auto; display: none; }
         .search-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 0.9rem; }
         .search-item:hover { background: #f0f7ff; }
 
@@ -25,34 +23,26 @@
         #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; }
 
-        /* UI Components */
-        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9rem; margin-top: 10px; border: 1px solid #ddd; }
+        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eee; }
+        .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 10px; border: 1px solid #ddd; }
         .btn { width: 100%; padding: 12px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-accent { background: var(--accent); }
         .btn-danger { background: #e74c3c; }
         
-        /* Stats */
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .stat-item { background: #fff; padding: 8px; border-radius: 5px; border: 1px solid #eee; text-align: center; }
-        .stat-val { display: block; font-size: 1.1rem; font-weight: bold; color: var(--accent); }
-
-        /* Table CSV */
-        .attr-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
-        .attr-table td { padding: 4px; border-bottom: 1px solid #eee; }
-        .attr-key { font-weight: bold; color: #666; width: 40%; }
-
-        /* Loader */
         #loader-container { display: none; margin-top: 10px; }
         .progress-bg { width: 100%; background: #ddd; height: 8px; border-radius: 4px; overflow: hidden; }
-        #progress-bar { width: 0%; height: 100%; background: var(--success); transition: width 0.2s; }
+        #progress-bar { width: 0%; height: 100%; background: var(--success); transition: width 0.1s; }
+
+        .attr-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .attr-table td { padding: 4px; border-bottom: 1px solid #eee; }
+        .attr-key { font-weight: bold; color: #666; width: 40%; }
     </style>
 </head>
 <body>
 
     <header id="top-bar">
         <div class="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse ou une ville..." autocomplete="off">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse (ex: 10 rue de la paix Paris)..." autocomplete="off">
             <div id="search-results"></div>
         </div>
     </header>
@@ -60,33 +50,34 @@
     <div id="container">
         <aside id="sidebar">
             <div class="card">
-                <h3><i class="fa-solid fa-chart-line"></i> Données de la vue</h3>
-                <div class="stats-grid">
-                    <div class="stat-item"><span class="stat-val" id="count-points">0</span> Points</div>
-                    <div class="stat-item"><span class="stat-val" id="count-poly">0</span> Zones</div>
+                <h3><i class="fa-solid fa-layer-group"></i> Vue actuelle</h3>
+                <div style="display: flex; gap: 5px; margin-top: 10px;">
+                    <div style="flex:1; text-align:center;"><span id="count-points" style="font-weight:bold; color:var(--accent);">0</span><br><small>Points</small></div>
+                    <div style="flex:1; text-align:center;"><span id="count-poly" style="font-weight:bold; color:var(--accent);">0</span><br><small>Zones</small></div>
                 </div>
-                <div id="measure-display" class="info-box">Tracez une zone pour calculer</div>
+                <div id="measure-display" class="info-box">Prêt pour les tracés.</div>
             </div>
 
             <div class="card">
-                <h3><i class="fa-solid fa-users"></i> Ratio Capacité</h3>
-                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%">
-                <div style="text-align:center; font-weight:bold; margin-top:5px;"><span id="ratio-val">3</span> pers/m²</div>
-            </div>
-
-            <div class="card">
-                <h3><i class="fa-solid fa-file-import"></i> Importation</h3>
-                <label style="display:block; text-align:center; padding:15px; border:2px dashed #ccc; cursor:pointer;">
-                    CSV, GeoJSON ou ZIP (SHP)
+                <h3><i class="fa-solid fa-file-csv"></i> Importation CSV / SIG</h3>
+                <label style="display:block; text-align:center; padding:20px; border:2px dashed #aaa; cursor:pointer; background:#fff;">
+                    <i class="fa-solid fa-upload"></i> Sélectionner un fichier
                     <input type="file" id="sig-import" style="display:none" accept=".csv,.geojson,.json,.zip">
                 </label>
                 <div id="loader-container">
-                    <div style="font-size:0.7rem;">Traitement : <span id="progress-percent">0</span>%</div>
+                    <div style="font-size:0.75rem; margin-bottom:3px;">Analyse en cours : <span id="progress-percent">0</span>%</div>
                     <div class="progress-bg"><div id="progress-bar"></div></div>
                 </div>
+                <div id="debug-log" style="font-size:10px; color:red; margin-top:5px;"></div>
             </div>
 
-            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter</button>
+            <div class="card">
+                <h3><i class="fa-solid fa-people-group"></i> Capacité</h3>
+                <input type="range" id="ratio-slider" min="0.5" max="10" step="0.5" value="3" style="width:100%">
+                <div style="text-align:center; font-weight:bold;"><span id="ratio-val">3</span> pers / m²</div>
+            </div>
+
+            <button class="btn btn-accent" onclick="exportData()"><i class="fa-solid fa-save"></i> Exporter le travail</button>
             <button class="btn btn-danger" onclick="clearAll()"><i class="fa-solid fa-trash"></i> Tout effacer</button>
         </aside>
         <main id="map"></main>
@@ -99,159 +90,162 @@
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
     <script>
-        const EPSG2154 = "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
         const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-        // --- INITIALISATION CARTE & COUCHES ---
+        // Initialisation Carte
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' });
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' });
-
         const map = L.map('map', { center: [46.6, 2.2], zoom: 6, layers: [satellite] });
-        
-        const baseLayers = { "Vue Satellite": satellite, "Vue Plan": osm, "Vue Allégée": light };
-        L.control.layers(baseLayers).addTo(map);
+        L.control.layers({ "Satellite": satellite, "Plan OSM": osm }).addTo(map);
 
         const drawnItems = new L.FeatureGroup().addTo(map);
         let currentRatio = 3;
 
-        // --- RECHERCHE D'ADRESSE ---
-        const searchInput = document.getElementById('search-input');
-        const searchResults = document.getElementById('search-results');
-
-        searchInput.addEventListener('input', async (e) => {
-            const val = e.target.value;
-            if (val.length < 3) { searchResults.style.display = 'none'; return; }
-            
-            try {
-                const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(val)}&limit=5`);
-                const data = await res.json();
-                searchResults.innerHTML = '';
-                data.features.forEach(f => {
-                    const div = document.createElement('div');
-                    div.className = 'search-item';
-                    div.innerText = f.properties.label;
-                    div.onclick = () => {
-                        const coords = f.geometry.coordinates;
-                        map.setView([coords[1], coords[0]], 16);
-                        searchResults.style.display = 'none';
-                        searchInput.value = f.properties.label;
-                    };
-                    searchResults.appendChild(div);
-                });
-                searchResults.style.display = 'block';
-            } catch (err) { console.error("Erreur recherche"); }
+        // --- MOTEUR DE RECHERCHE ---
+        const sInput = document.getElementById('search-input');
+        const sRes = document.getElementById('search-results');
+        sInput.addEventListener('input', async () => {
+            if (sInput.value.length < 3) { sRes.style.display = 'none'; return; }
+            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(sInput.value)}&limit=5`);
+            const d = await r.json();
+            sRes.innerHTML = '';
+            d.features.forEach(f => {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.innerText = f.properties.label;
+                item.onclick = () => {
+                    map.setView([f.geometry.coordinates[1], f.geometry.coordinates[0]], 17);
+                    sRes.style.display = 'none';
+                    sInput.value = f.properties.label;
+                };
+                sRes.appendChild(item);
+            });
+            sRes.style.display = 'block';
         });
 
-        // --- CALCULS & STATS ---
-        function updateStats() {
-            let pts = 0, polys = 0;
-            drawnItems.eachLayer(l => {
-                if (l instanceof L.Marker || l instanceof L.CircleMarker) pts++;
-                if (l instanceof L.Polygon) polys++;
-            });
-            document.getElementById('count-points').innerText = pts;
-            document.getElementById('count-poly').innerText = polys;
-        }
-
-        function updateMeasurements(layer) {
-            if (layer instanceof L.Polygon) {
-                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                const nbPers = Math.floor(area * currentRatio);
-                const text = `<b>Surface :</b> ${area.toFixed(1)} m²<br><b>Capacité :</b> <span style="color:var(--success)">${nbPers.toLocaleString()} pers.</span>`;
-                document.getElementById('measure-display').innerHTML = text;
-                layer.bindPopup(text).openPopup();
-            }
-            updateStats();
-        }
-
-        // --- IMPORT CSV & SIG ---
+        // --- LOGIQUE D'IMPORT CSV ---
         async function processCsv(text) {
-            const lines = text.replace(/\r/g, "").split('\n').filter(l => l.trim() !== "");
+            const debug = document.getElementById('debug-log');
+            debug.innerText = "";
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+            if (lines.length < 2) return null;
+
             const sep = lines[0].includes(';') ? ';' : ',';
-            const headers = lines[0].split(sep).map(h => h.trim());
-            const features = [];
+            const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
             
+            // Détection colonnes intelligentes
+            const idxLat = headers.findIndex(h => h.match(/lat|y|nord/));
+            const idxLon = headers.findIndex(h => h.match(/lon|lng|x|est/));
+            const idxAdr = headers.findIndex(h => h.match(/adr|lieu|site|ville/));
+
+            if (idxLat === -1 && idxLon === -1 && idxAdr === -1) {
+                debug.innerText = "Erreur: Colonnes 'lat/lon' ou 'adresse' introuvables.";
+                return null;
+            }
+
+            const features = [];
             document.getElementById('loader-container').style.display = 'block';
 
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].split(sep).map(c => c.trim());
-                if (cols.length < headers.length) continue;
+                const progress = Math.round((i / lines.length) * 100);
+                document.getElementById('progress-bar').style.width = progress + '%';
+                document.getElementById('progress-percent').innerText = progress;
 
                 let props = {};
-                headers.forEach((h, idx) => props[h] = cols[idx]);
+                headers.forEach((h, j) => props[h] = cols[j]);
 
-                const p = Math.round((i / lines.length) * 100);
-                document.getElementById('progress-bar').style.width = p + '%';
-                document.getElementById('progress-percent').innerText = p;
+                // Priorité 1: Coordonnées
+                const latVal = parseFloat(cols[idxLat]?.replace(',', '.'));
+                const lonVal = parseFloat(cols[idxLon]?.replace(',', '.'));
 
-                // Chercher lat/lon ou adresse
-                const lat = parseFloat(props['lat'] || props['latitude']);
-                const lon = parseFloat(props['lon'] || props['longitude'] || props['lng']);
-                const addr = props['adresse'] || props['lieu'];
-
-                if (!isNaN(lat) && !isNaN(lon)) {
-                    features.push({ type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] }, properties: props });
-                } else if (addr) {
-                    await sleep(100);
-                    const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(addr)}&limit=1`);
-                    const d = await r.json();
-                    if (d.features.length > 0) {
-                        d.features[0].properties = {...props, ...d.features[0].properties};
-                        features.push(d.features[0]);
-                    }
+                if (!isNaN(latVal) && !isNaN(lonVal)) {
+                    features.push({ type: "Feature", geometry: { type: "Point", coordinates: [lonVal, latVal] }, properties: props });
+                } 
+                // Priorité 2: Géocodage
+                else if (idxAdr !== -1 && cols[idxAdr]) {
+                    try {
+                        await sleep(150); // Respect API
+                        const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cols[idxAdr])}&limit=1`);
+                        const d = await r.json();
+                        if (d.features.length > 0) {
+                            let f = d.features[0];
+                            f.properties = {...props, ...f.properties};
+                            features.push(f);
+                        }
+                    } catch(e) {}
                 }
             }
             document.getElementById('loader-container').style.display = 'none';
             return { type: "FeatureCollection", features: features };
         }
 
-        document.getElementById('sig-import').onchange = function(e) {
+        document.getElementById('sig-import').onchange = async function(e) {
             const file = e.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
+            
             reader.onload = async (ev) => {
                 let gj;
-                if (file.name.endsWith('.csv')) gj = await processCsv(ev.target.result);
-                else if (file.name.endsWith('.zip')) gj = await shp(ev.target.result);
-                else gj = JSON.parse(ev.target.result);
-                
-                L.geoJSON(gj, {
-                    pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 7, fillColor: "#0070F6", color: "#fff", weight: 2, fillOpacity: 0.9 }),
-                    onEachFeature: (f, l) => {
-                        drawnItems.addLayer(l);
-                        let table = "<table class='attr-table'>";
-                        for (let k in f.properties) { if(typeof f.properties[k] !== 'object') table += `<tr><td class='attr-key'>${k}</td><td>${f.properties[k]}</td></tr>`; }
-                        l.bindPopup(`<b>Données :</b>${table + "</table>"}`);
-                        l.on('click', () => { if(l instanceof L.Polygon) updateMeasurements(l); });
+                try {
+                    if (file.name.endsWith('.csv')) gj = await processCsv(ev.target.result);
+                    else if (file.name.endsWith('.zip')) gj = await shp(ev.target.result);
+                    else gj = JSON.parse(ev.target.result);
+
+                    if (gj) {
+                        const layer = L.geoJSON(gj, {
+                            pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 8, fillColor: "#0070F6", color: "#fff", weight: 2, fillOpacity: 0.8 }),
+                            onEachFeature: (f, l) => {
+                                drawnItems.addLayer(l);
+                                let t = "<table class='attr-table'>";
+                                for (let k in f.properties) { t += `<tr><td class='attr-key'>${k}</td><td>${f.properties[k]}</td></tr>`; }
+                                l.bindPopup(t + "</table>");
+                            }
+                        });
+                        map.fitBounds(layer.getBounds());
+                        updateStats();
                     }
-                }).addTo(map);
-                updateStats();
+                } catch(err) { alert("Erreur de format de fichier."); }
             };
             file.name.endsWith('.zip') ? reader.readAsArrayBuffer(file) : reader.readAsText(file);
         };
 
-        // --- DESSIN ---
+        // --- OUTILS DE DESSIN ---
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: { circle: false, marker: false, polyline: false, circlemarker: false }
         });
         map.addControl(drawControl);
 
-        map.on(L.Draw.Event.CREATED, e => { drawnItems.addLayer(e.layer); updateMeasurements(e.layer); });
-        map.on(L.Draw.Event.EDITED, () => { drawnItems.eachLayer(l => updateMeasurements(l)); });
+        function updateStats() {
+            let p=0, z=0;
+            drawnItems.eachLayer(l => { if(l instanceof L.Polygon) z++; else p++; });
+            document.getElementById('count-points').innerText = p;
+            document.getElementById('count-poly').innerText = z;
+        }
+
+        map.on(L.Draw.Event.CREATED, e => {
+            drawnItems.addLayer(e.layer);
+            if (e.layer instanceof L.Polygon) {
+                const area = L.GeometryUtil.geodesicArea(e.layer.getLatLngs()[0]);
+                const cap = Math.floor(area * currentRatio);
+                const txt = `<b>Surface:</b> ${area.toFixed(1)} m²<br><b>Capacité:</b> ${cap.toLocaleString()} pers.`;
+                e.layer.bindPopup(txt).openPopup();
+                document.getElementById('measure-display').innerHTML = txt;
+            }
+            updateStats();
+        });
 
         document.getElementById('ratio-slider').oninput = function() {
             currentRatio = this.value;
             document.getElementById('ratio-val').innerText = this.value;
-            drawnItems.eachLayer(l => { if(l instanceof L.Polygon) updateMeasurements(l); });
         };
 
-        function clearAll() { if(confirm("Vider la carte ?")) { drawnItems.clearLayers(); updateStats(); } }
+        function clearAll() { if(confirm("Supprimer toutes les données ?")) { drawnItems.clearLayers(); updateStats(); } }
         function exportData() {
-            const data = JSON.stringify(drawnItems.toGeoJSON());
-            const blob = new Blob([data], {type: 'application/json'});
+            const blob = new Blob([JSON.stringify(drawnItems.toGeoJSON())], {type: 'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = 'carto_export.geojson'; a.click();
+            a.download = 'export_carto.geojson'; a.click();
         }
     </script>
 </body>
