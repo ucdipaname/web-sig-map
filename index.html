@@ -13,10 +13,6 @@
     <!-- Leaflet Control Geocoder -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-    <!-- Leaflet Shapefile -->
-    <script src="https://unpkg.com/leaflet-shp@0.4.0/dist/leaflet.shp.js"></script>
-    <!-- Leaflet Omnivore (KML) -->
-    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
     <!-- FileSaver.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
@@ -82,18 +78,8 @@
             align-items: center;
             justify-content: center;
         }
-        #text-customization {
-            margin-top: 10px;
-        }
         #text-customization input, #text-customization select {
             margin-bottom: 5px;
-            width: 100%;
-        }
-        #surface-calc {
-            margin-top: 10px;
-        }
-        #surface-calc button {
-            margin-top: 5px;
             width: 100%;
         }
         .picto-form {
@@ -119,7 +105,24 @@
 </head>
 <body>
     <div id="left-panel">
-        <!-- ... (le reste du code HTML reste identique) ... -->
+        <div class="panel-section">
+            <h3>Calques</h3>
+            <div id="layers-list"></div>
+            <button id="add-layer">Ajouter un calque</button>
+        </div>
+        <div class="panel-section">
+            <h3>Import/Export</h3>
+            <input type="file" id="import-shapefile" accept=".zip" />
+            <input type="file" id="import-kml" accept=".kml" />
+            <button id="export-geojson">Exporter en GeoJSON</button>
+        </div>
+        <div class="panel-section">
+            <h3>Modifier la surface</h3>
+            <label for="surface-coeff">Coefficient multiplicateur :</label>
+            <input type="number" id="surface-coeff" value="3" min="1" />
+            <button id="calc-population">Calculer population</button>
+            <p id="population-result"></p>
+        </div>
     </div>
     <div id="map"></div>
     <div id="right-panel">
@@ -137,7 +140,18 @@
             </div>
         </div>
         <div class="panel-section">
-            <!-- ... -->
+            <h3>Texte personnalisé</h3>
+            <div id="text-customization">
+                <input type="text" id="text-content" placeholder="Votre texte" />
+                <input type="color" id="text-color" value="#000000" />
+                <select id="text-font">
+                    <option value="Arial">Arial</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                </select>
+                <input type="range" id="text-size" min="8" max="36" value="12" />
+                <button id="add-text">Ajouter texte</button>
+            </div>
         </div>
     </div>
 
@@ -145,7 +159,94 @@
         // Initialisation de la carte
         const map = L.map('map').setView([48.8566, 2.3522], 12);
 
-        // ... (le reste du code JS reste identique jusqu'à la gestion des pictos) ...
+        // Couches de base
+        const baseLayers = {
+            "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }),
+            "OpenStreetMap allégée": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }),
+            "Vue aérienne": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri'
+            })
+        };
+        baseLayers["OpenStreetMap"].addTo(map);
+        L.control.layers(baseLayers).addTo(map);
+
+        // Recherche d'adresse
+        L.Control.geocoder({
+            geocoder: new L.Control.Geocoder.nominatim(),
+            position: 'topright',
+            placeholder: 'Rechercher une rue...',
+            errorMessage: 'Adresse non trouvée',
+            defaultMarkGeocode: true
+        }).addTo(map);
+
+        // Gestion des calques
+        const overlayLayers = {};
+        let layerCounter = 1;
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        overlayLayers['Dessin'] = drawnItems;
+
+        document.getElementById('add-layer').addEventListener('click', () => {
+            const layerName = `Calque ${layerCounter++}`;
+            const layer = L.featureGroup().addTo(map);
+            overlayLayers[layerName] = layer;
+            updateLayersList();
+        });
+
+        function updateLayersList() {
+            const list = document.getElementById('layers-list');
+            list.innerHTML = '';
+            for (const [name, layer] of Object.entries(overlayLayers)) {
+                const item = document.createElement('div');
+                item.className = 'layer-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = map.hasLayer(layer);
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) map.addLayer(layer);
+                    else map.removeLayer(layer);
+                });
+                const label = document.createElement('label');
+                label.textContent = name;
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                list.appendChild(item);
+            }
+        }
+
+        // Outils de dessin
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems },
+            draw: {
+                polygon: true,
+                polyline: true,
+                rectangle: false,
+                circle: false,
+                marker: false
+            }
+        });
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, (e) => {
+            drawnItems.addLayer(e.layer);
+        });
+
+        // Calcul de population
+        document.getElementById('calc-population').addEventListener('click', () => {
+            let totalArea = 0;
+            drawnItems.eachLayer(layer => {
+                if (layer instanceof L.Polygon) {
+                    const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                    totalArea += area;
+                }
+            });
+            const coeff = parseFloat(document.getElementById('surface-coeff').value);
+            const population = Math.round(totalArea * coeff / 1000000);
+            document.getElementById('population-result').textContent = `Population estimée : ${population} personnes`;
+        });
 
         // Gestion des pictos
         let selectedPictoType = null;
@@ -165,62 +266,33 @@
             }
 
             const iconOptions = {
-                CRS: {
-                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,0 0,40 40,40" fill="blue" stroke="black"/></svg>',
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20],
-                    className: 'draggable-marker'
-                },
-                GM: {
-                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect x="0" y="0" width="40" height="40" fill="brown" stroke="black"/></svg>',
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20],
-                    className: 'draggable-marker'
-                },
-                CIE: {
-                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="red" stroke="black"/></svg>',
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20],
-                    className: 'draggable-marker'
-                }
+                CRS: { iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,0 0,40 40,40" fill="blue" stroke="black"/></svg>', iconSize: [40, 40], iconAnchor: [20, 20] },
+                GM: { iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect x="0" y="0" width="40" height="40" fill="brown" stroke="black"/></svg>', iconSize: [40, 40], iconAnchor: [20, 20] },
+                CIE: { iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="red" stroke="black"/></svg>', iconSize: [40, 40], iconAnchor: [20, 20] }
             };
 
             const customIcon = L.icon(iconOptions[selectedPictoType]);
 
             map.once('click', (e) => {
                 const latLng = e.latlng;
-                const marker = L.marker(latLng, {
-                    icon: customIcon,
-                    draggable: true
-                }).addTo(drawnItems);
+                const marker = L.marker(latLng, { icon: customIcon, draggable: true }).addTo(drawnItems);
 
-                // Ajout des labels au-dessus et en dessous
-                const nameLabel = L.marker(latLng, {
-                    icon: L.divIcon({
-                        className: 'leaflet-label-picto',
-                        html: `<div>${name}</div>`
-                    }),
+                // Ajout des labels
+                const nameLabel = L.marker(L.latLng(latLng.lat + 0.0002, latLng.lng), {
+                    icon: L.divIcon({ className: 'leaflet-label-picto', html: `<div>${name}</div>` }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
 
-                const timeLabel = L.marker(latLng, {
-                    icon: L.divIcon({
-                        className: 'leaflet-label-picto',
-                        html: `<div>${time}</div>`
-                    }),
+                const timeLabel = L.marker(L.latLng(latLng.lat - 0.0002, latLng.lng), {
+                    icon: L.divIcon({ className: 'leaflet-label-picto', html: `<div>${time}</div>` }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
-
-                // Décalage vertical des labels
-                const offset = 0.0002;
-                nameLabel.setLatLng(L.latLng(latLng.lat + offset, latLng.lng));
-                timeLabel.setLatLng(L.latLng(latLng.lat - offset, latLng.lng));
 
                 // Synchronisation lors du drag
                 marker.on('dragend', function() {
                     const newLatLng = marker.getLatLng();
-                    nameLabel.setLatLng(L.latLng(newLatLng.lat + offset, newLatLng.lng));
-                    timeLabel.setLatLng(L.latLng(newLatLng.lat - offset, newLatLng.lng));
+                    nameLabel.setLatLng(L.latLng(newLatLng.lat + 0.0002, newLatLng.lng));
+                    timeLabel.setLatLng(L.latLng(newLatLng.lat - 0.0002, newLatLng.lng));
                 });
             });
 
@@ -230,10 +302,28 @@
             document.getElementById('picto-time').value = '';
         });
 
-        // ... (le reste du code JS reste identique) ...
+        // Texte personnalisé
+        document.getElementById('add-text').addEventListener('click', () => {
+            const content = document.getElementById('text-content').value;
+            const color = document.getElementById('text-color').value;
+            const font = document.getElementById('text-font').value;
+            const size = document.getElementById('text-size').value;
+            map.once('click', (e) => {
+                L.marker(e.latlng, {
+                    icon: L.divIcon({
+                        className: 'text-label',
+                        html: `<div style="color:${color};font-family:${font};font-size:${size}px;background:white;padding:2px;">${content}</div>`
+                    }),
+                    draggable: true
+                }).addTo(drawnItems);
+            });
+        });
+
+        updateLayersList();
     </script>
 </body>
 </html>
+
 
 
 
