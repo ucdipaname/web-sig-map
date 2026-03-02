@@ -100,6 +100,8 @@
             box-shadow: 0 0 3px rgba(0,0,0,0.3);
             text-align: center;
             white-space: nowrap;
+            position: absolute;
+            transform: translate(-50%, 0);
         }
     </style>
 </head>
@@ -277,22 +279,50 @@
                 const latLng = e.latlng;
                 const marker = L.marker(latLng, { icon: customIcon, draggable: true }).addTo(drawnItems);
 
-                // Ajout des labels
-                const nameLabel = L.marker(L.latLng(latLng.lat + 0.0002, latLng.lng), {
-                    icon: L.divIcon({ className: 'leaflet-label-picto', html: `<div>${name}</div>` }),
+                // Ajout des labels avec L.DivIcon pour une meilleure gestion du zoom
+                const nameLabel = L.marker(latLng, {
+                    icon: L.divIcon({
+                        className: 'leaflet-label-picto',
+                        html: `<div>${name}</div>`,
+                        iconSize: [100, 20],
+                        iconAnchor: [50, 0]
+                    }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
 
-                const timeLabel = L.marker(L.latLng(latLng.lat - 0.0002, latLng.lng), {
-                    icon: L.divIcon({ className: 'leaflet-label-picto', html: `<div>${time}</div>` }),
+                const timeLabel = L.marker(latLng, {
+                    icon: L.divIcon({
+                        className: 'leaflet-label-picto',
+                        html: `<div>${time}</div>`,
+                        iconSize: [100, 20],
+                        iconAnchor: [50, 20]
+                    }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
 
                 // Synchronisation lors du drag
                 marker.on('dragend', function() {
                     const newLatLng = marker.getLatLng();
-                    nameLabel.setLatLng(L.latLng(newLatLng.lat + 0.0002, newLatLng.lng));
-                    timeLabel.setLatLng(L.latLng(newLatLng.lat - 0.0002, newLatLng.lng));
+                    nameLabel.setLatLng(newLatLng);
+                    timeLabel.setLatLng(newLatLng);
+                });
+
+                // Synchronisation lors du zoom
+                map.on('zoomend', function() {
+                    const zoom = map.getZoom();
+                    const scale = Math.pow(2, zoom - 12); // Ajuste la taille en fonction du zoom
+                    nameLabel.setIcon(L.divIcon({
+                        className: 'leaflet-label-picto',
+                        html: `<div style="font-size: ${16 * scale}px">${name}</div>`,
+                        iconSize: [100 * scale, 20 * scale],
+                        iconAnchor: [50 * scale, 0]
+                    }));
+                    timeLabel.setIcon(L.divIcon({
+                        className: 'leaflet-label-picto',
+                        html: `<div style="font-size: ${16 * scale}px">${time}</div>`,
+                        iconSize: [100 * scale, 20 * scale],
+                        iconAnchor: [50 * scale, 20 * scale]
+                    }));
                 });
             });
 
@@ -323,6 +353,7 @@
     </script>
 </body>
 </html>
+
 
 
 
