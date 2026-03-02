@@ -2,9 +2,12 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Géo-Tactique V11 - Import KML / CSV / JSON</title>
+    <title>Géo-Tactique V12 - Spécial Shapefile ZIP</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/catiline/2.9.3/catiline.min.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
     
     <style>
@@ -12,15 +15,12 @@
         body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', sans-serif; }
         #sidebar { width: var(--sidebar-width); background: #f4f4f4; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; z-index: 1; background: #cbd5e0; }
-        
-        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #eee; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; margin-top: 5px; font-size: 0.85rem; }
         .btn-accent { background: var(--accent); color: white; }
-        .btn-success { background: #27ae60; color: white; }
-        
+        .btn-shp { background: #8e44ad; color: white; } /* Violet pour le Shapefile */
         .layer-item { padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 5px; cursor: pointer; background: white; display: flex; justify-content: space-between; align-items: center; }
         .layer-item.active { border: 2px solid var(--accent); background: #eef6ff; }
-        
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
         .picto-btn { width: 55px; height: 35px; border: 1px solid black; color: white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
     </style>
@@ -28,30 +28,28 @@
 <body>
 
     <aside id="sidebar">
-        <h2 style="margin-top:0;">Tactique Expert</h2>
+        <h2 style="margin-top:0; color: var(--dark);">SÉCURITÉ TACTIQUE</h2>
         
         <div class="card">
-            <strong>Calques Opérationnels</strong>
+            <strong><i class="fa fa-layer-group"></i> Calques</strong>
             <div id="layers-list" style="margin: 10px 0;"></div>
             <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau Calque</button>
         </div>
 
-        <div class="card">
-            <strong>Importation (KML, CSV, JSON)</strong>
-            <input type="file" id="universal-import" class="btn" style="font-size: 11px; background: #eee;">
-            <p style="font-size: 10px; color: #666; line-height: 1.4;">
-                • <b>KML</b> : Pour les données Ville de Paris.<br>
-                • <b>CSV</b> : Doit contenir 'lat' et 'lon'.<br>
-                • <b>JSON</b> : Projets tactiques.
-            </p>
+        <div class="card" style="border-left: 5px solid #8e44ad;">
+            <strong><i class="fa fa-file-zipper"></i> Import SHAPEFILE (.zip)</strong>
+            <input type="file" id="shp-import" class="btn" accept=".zip" style="font-size: 11px; background: #f9f9f9; border: 1px dashed #8e44ad;">
+            <p style="font-size: 10px; color: #666; margin-top:5px;">Sélectionnez le fichier <b>.zip</b> contenant vos .shp, .dbf, etc.</p>
         </div>
 
         <div class="card">
-            <strong>Export</strong>
-            <button class="btn btn-success" onclick="exportProject()">Sauvegarder Projet (.json)</button>
+            <strong><i class="fa fa-file-import"></i> Autres Formats</strong>
+            <input type="file" id="kml-csv-import" class="btn" accept=".kml,.csv" style="font-size: 11px; background: #eee;">
+            <p style="font-size: 10px; color: #666;">KML ou CSV (lat/lon)</p>
         </div>
 
-        <button class="btn" style="background:#e74c3c; color:white; margin-top: auto;" onclick="location.reload()">Réinitialiser Carte</button>
+        <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Sauvegarder Projet (.json)</button>
+        <button class="btn" style="background:#e74c3c; color:white; margin-top: 10px;" onclick="location.reload()">Réinitialiser</button>
     </aside>
 
     <div id="map">
@@ -74,8 +72,7 @@
         let currentActiveId = null;
         let unitToPlace = null;
 
-        // --- GESTION DES CALQUES ---
-        function createNewLayer(name = "Calque Tactique") {
+        function createNewLayer(name = "Calque") {
             const group = new L.FeatureGroup().addTo(map);
             const id = "L-" + Date.now();
             projectLayers.push({ id, name, group });
@@ -89,7 +86,7 @@
             if (window.drawControl) map.removeControl(window.drawControl);
             window.drawControl = new L.Control.Draw({
                 edit: { featureGroup: active.group },
-                draw: { marker: true, polygon: true, polyline: true, circle: false, rectangle: true }
+                draw: { marker: true, polygon: true, polyline: true, rectangle: true, circle: false }
             });
             map.addControl(window.drawControl);
             updateUI();
@@ -109,18 +106,75 @@
             active.group.addLayer(e.layer);
         });
 
-        // --- FONCTION PICTO ---
+        // --- IMPORT SHAPEFILE (.ZIP) ---
+        document.getElementById('shp-import').onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const buffer = event.target.result;
+                
+                // Utilisation de shpjs pour parser le buffer du zip
+                shp(buffer).then(function(geojson) {
+                    const layerName = file.name.replace('.zip', '');
+                    const newLayer = createNewLayer("SHP: " + layerName);
+                    
+                    const dataLayer = L.geoJSON(geojson, {
+                        onEachFeature: function(feature, layer) {
+                            if (feature.properties) {
+                                let popupContent = "<b>Données Shapefile :</b><br>";
+                                for (let key in feature.properties) {
+                                    popupContent += `<b>${key}</b>: ${feature.properties[key]}<br>`;
+                                }
+                                layer.bindPopup(popupContent);
+                            }
+                        },
+                        style: { color: "#8e44ad", weight: 2, fillOpacity: 0.2 }
+                    });
+
+                    dataLayer.eachLayer(l => newLayer.group.addLayer(l));
+                    map.fitBounds(newLayer.group.getBounds());
+                }).catch(err => {
+                    alert("Erreur lors de la lecture du Shapefile. Vérifiez que le ZIP contient bien les fichiers .shp, .dbf et .prj.");
+                    console.error(err);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        // --- IMPORT KML / CSV ---
+        document.getElementById('kml-csv-import').onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            const ext = file.name.split('.').pop().toLowerCase();
+            const newLayer = createNewLayer("Import: " + file.name);
+
+            reader.onload = function(event) {
+                let omniLayer;
+                if (ext === 'kml') omniLayer = omnivore.kml.parse(event.target.result);
+                else if (ext === 'csv') omniLayer = omnivore.csv.parse(event.target.result);
+                
+                if (omniLayer) {
+                    omniLayer.eachLayer(l => newLayer.group.addLayer(l));
+                    map.fitBounds(newLayer.group.getBounds());
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        // --- PICTOS ---
         function setUnit(type) { unitToPlace = type; map.getContainer().style.cursor = 'crosshair'; }
-        
         map.on('click', (e) => {
             if (!unitToPlace) return;
             const active = projectLayers.find(l => l.id === currentActiveId);
             const name = prompt("Nom de l'unité ?");
             if (name) {
                 const colors = { CRS: 'blue', GM: '#5D4037', CIE: 'red', BRAV: 'green' };
-                const html = `<div style="border:2px solid black; background:${colors[unitToPlace]}; color:white; font-weight:bold; padding:2px; font-size:10px; text-align:center;">${unitToPlace}<br><span style="background:white; color:black; font-size:9px;">${name}</span></div>`;
+                const html = `<div style="border:2px solid black; background:${colors[unitToPlace]}; color:white; font-weight:bold; padding:2px; font-size:10px; text-align:center;">${unitToPlace}<br><span style="background:white; color:black; font-size:9px; padding:0 2px;">${name}</span></div>`;
                 const marker = L.marker(e.latlng, {
-                    icon: L.divIcon({ className: '', html: html, iconSize: [50, 35] }),
+                    icon: L.divIcon({ className: '', html: html, iconSize: [55, 35] }),
                     draggable: true
                 });
                 marker.feature = { properties: { customHtml: html, name: name } };
@@ -129,72 +183,16 @@
             unitToPlace = null; map.getContainer().style.cursor = '';
         });
 
-        // --- IMPORTATION UNIVERSELLE (KML, CSV, JSON) ---
-        document.getElementById('universal-import').onchange = function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            const extension = file.name.split('.').pop().toLowerCase();
-            const layerObj = createNewLayer("Import: " + file.name);
-
-            reader.onload = function(event) {
-                const content = event.target.result;
-
-                if (extension === 'kml') {
-                    // Utilisation d'Omnivore pour le KML
-                    const kmlLayer = omnivore.kml.parse(content);
-                    kmlLayer.eachLayer(l => layerObj.group.addLayer(l));
-                    map.fitBounds(layerObj.group.getBounds());
-                } 
-                else if (extension === 'csv') {
-                    const csvLayer = omnivore.csv.parse(content);
-                    csvLayer.eachLayer(l => layerObj.group.addLayer(l));
-                    map.fitBounds(layerObj.group.getBounds());
-                }
-                else if (extension === 'json' || extension === 'geojson') {
-                    try {
-                        const data = JSON.parse(content);
-                        // Si c'est un projet complet (Array)
-                        if (Array.isArray(data)) {
-                            projectLayers.pop(); // Enlever le calque vide créé au début
-                            data.forEach(saved => {
-                                const l = createNewLayer(saved.name);
-                                L.geoJSON(saved.data, {
-                                    pointToLayer: (feat, latlng) => {
-                                        if (feat.properties.customHtml) {
-                                            return L.marker(latlng, { icon: L.divIcon({ html: feat.properties.customHtml, iconSize:[50,35] }), draggable: true });
-                                        }
-                                        return L.marker(latlng);
-                                    }
-                                }).eachLayer(item => l.group.addLayer(item));
-                            });
-                        } else {
-                            // Si c'est un GeoJSON simple (Paris)
-                            L.geoJSON(data).eachLayer(l => layerObj.group.addLayer(l));
-                            map.fitBounds(layerObj.group.getBounds());
-                        }
-                    } catch (err) { alert("Erreur JSON : " + err.message); }
-                }
-            };
-
-            if (extension === 'kml' || extension === 'csv' || extension === 'json' || extension === 'geojson') {
-                reader.readAsText(file);
-            } else {
-                alert("Format non supporté. Utilisez KML, CSV ou JSON.");
-            }
-        };
-
         function exportProject() {
             const data = projectLayers.map(l => ({ name: l.name, data: l.group.toGeoJSON() }));
             const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = "tactique_export.json";
+            a.download = "plan_tactique_final.json";
             a.click();
         }
 
-        createNewLayer("Secteur Tactique 1");
+        createNewLayer("Zone de travail 1");
     </script>
 </body>
 </html>
