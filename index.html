@@ -3,91 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carto Pro - Planification</title>
+    <title>Cartographie Tactique Pro - V3</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
-        body { margin: 0; display: flex; font-family: sans-serif; height: 100vh; }
-        
-        /* Panneau latéral gauche */
-        #sidebar { 
-            width: 320px; 
-            background: #f8f9fa; 
-            border-right: 1px solid #ccc; 
-            display: flex; 
-            flex-direction: column; 
-            padding: 10px;
-            overflow-y: auto;
-        }
-
-        /* Carte */
+        body { margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; height: 100vh; background: #2c3e50; }
+        #sidebar { width: 360px; background: #f4f7f6; border-right: 2px solid #bdc3c7; display: flex; flex-direction: column; padding: 15px; overflow-y: auto; }
         #map { flex: 1; }
-
-        .box { 
-            background: white; 
-            border: 1px solid #ddd; 
-            border-radius: 5px; 
-            padding: 10px; 
-            margin-bottom: 15px; 
-        }
+        .box { background: white; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h3 { margin: 0 0 10px 0; font-size: 0.95rem; color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; text-transform: uppercase; }
         
-        .box h3 { margin-top: 0; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        button { cursor: pointer; padding: 10px; border: 1px solid #bdc3c7; background: #fff; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
+        button:hover { background: #ebf5fb; }
+        button.active { background: #3498db; color: white; border-color: #2980b9; }
 
-        .layer-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-        
-        .btn-group { display: flex; flex-direction: column; gap: 5px; }
-        button { cursor: pointer; padding: 8px; border: 1px solid #ccc; background: #eee; border-radius: 3px; }
-        button:hover { background: #ddd; }
+        .layer-item { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; background: #eee; padding: 5px; border-radius: 4px; }
+        .layer-item input[type="text"] { flex: 1; border: 1px solid #ccc; padding: 2px 5px; font-size: 0.85em; }
 
-        #stats-box { font-weight: bold; color: #2c3e50; }
-
-        /* Styles des Pictos Custom */
+        /* Pictos */
         .custom-icon-container { text-align: center; }
-        .label-top { font-size: 10px; font-weight: bold; margin-bottom: -2px; }
-        .label-bottom { font-size: 10px; margin-top: -2px; }
-        
-        /* Formes des pictos */
-        .shape { width: 24px; height: 24px; border: 1px solid black; margin: 0 auto; }
-        .crs-shape { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 24px solid blue; border-top: none; background: none; }
+        .label-top { font-size: 11px; font-weight: bold; margin-bottom: -2px; background: rgba(255,255,255,0.7); border-radius: 3px; }
+        .label-bottom { font-size: 10px; margin-top: -2px; background: rgba(255,255,255,0.7); border-radius: 3px; }
+        .shape { width: 22px; height: 22px; border: 1.5px solid black; margin: 0 auto; }
+        .crs-shape { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 24px solid blue; }
         .gm-shape { background: #8B4513; }
-        .cie-shape { background: red; border-radius: 50%; }
+        .cie-shape { background: #ff0000; border-radius: 50%; }
 
+        .config-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 0.9em; }
+        .status-save { font-size: 0.75em; color: #27ae60; text-align: right; margin-top: -5px; height: 15px; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
+    <div id="save-indicator" class="status-save"></div>
+    
     <div class="box">
         <h3>Calques</h3>
         <div id="layer-list"></div>
     </div>
 
     <div class="box">
-        <h3>Unités (Pictos)</h3>
-        <div class="btn-group">
-            <button onclick="setMode('CRS')">▲ CRS (Triangle Bleu)</button>
-            <button onclick="setMode('GM')">■ GM (Carré Marron)</button>
-            <button onclick="setMode('CIE')">● CIE (Rond Rouge)</button>
+        <h3>Unités & Texte</h3>
+        <div class="btn-grid">
+            <button onclick="setMode('CRS')">▲ CRS</button>
+            <button onclick="setMode('GM')">■ GM</button>
+            <button onclick="setMode('CIE')">● CIE</button>
+            <button onclick="setMode('TEXT')">T Texte</button>
         </div>
-        <p><small>Cliquez sur le bouton puis sur la carte.</small></p>
     </div>
 
     <div class="box">
-        <h3>Données & Export</h3>
-        <div class="btn-group">
-            <label>Importer KML/SHP (Zip):</label>
-            <input type="file" id="importFile" accept=".kml,.zip">
-            <button onclick="exportGeoJSON()">Exporter en GeoJSON</button>
-        </div>
+        <h3>Style (Tracés & Texte)</h3>
+        <div class="config-row">Couleur : <input type="color" id="drawColor" value="#e74c3c"></div>
+        <div class="config-row">Remplissage : <input type="color" id="fillColor" value="#e74c3c"></div>
+        <div class="config-row">Taille texte : <input type="number" id="textSize" value="16" style="width:50px"> px</div>
     </div>
 
-    <div class="box" id="stats-box">
+    <div class="box">
+        <h3>Projet</h3>
+        <button style="width:100%; margin-bottom:5px" onclick="exportGeoJSON()">Exporter (GeoJSON)</button>
+        <button style="width:100%; background:#fADBD8; color:#C0392B" onclick="clearAll()">Tout effacer</button>
+    </div>
+
+    <div class="box">
         <h3>Mesures</h3>
-        <div>Surface : <span id="area-val">0</span> m²</div>
-        <div>Nb de pers. (x3) : <span id="pers-val">0</span></div>
+        <div class="config-row">Surface : <b id="area-val">0</b> m²</div>
+        <div class="config-row">Pers. (x3) : <b id="pers-val">0</b></div>
     </div>
 </div>
 
@@ -96,137 +82,188 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
 
 <script>
-    // --- INITIALISATION DE LA CARTE ---
+    // 1. Initialisation
     const map = L.map('map').setView([48.8566, 2.3522], 13);
+    
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+    const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
 
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { label: 'OpenStreetMap' }).addTo(map);
-    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { label: 'Vue Aérienne' });
-    const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { label: 'OSM Allégé' });
+    L.control.layers({ "OSM": osm, "Satellite": satellite, "Allégé": osmLight }).addTo(map);
+    L.Control.geocoder({ defaultMarkGeocode: true, placeholder: "Chercher une rue..." }).addTo(map);
 
-    const baseMaps = { "OSM": osm, "Satellite": satellite, "Allégé": osmLight };
-    L.control.layers(baseMaps).addTo(map);
-
-    // --- RECHERCHE NOMINATIM ---
-    L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
-
-    // --- GESTION DU DESSIN (Surfaces & Lignes) ---
     const drawnItems = new L.FeatureGroup().addTo(map);
+    let currentMode = null;
+
+    // 2. Outils de dessin
     const drawControl = new L.Control.Draw({
         edit: { featureGroup: drawnItems },
-        draw: {
-            polygon: { shapeOptions: { color: '#3388ff', weight: 3 } },
-            polyline: { shapeOptions: { color: '#f39c12', weight: 4 } },
-            circle: false, rectangle: true, marker: false, circlemarker: false
-        }
+        draw: { circle: false, marker: false, circlemarker: false, rectangle: true }
     });
     map.addControl(drawControl);
 
-    // --- CALCULS AUTOMATIQUES ---
-    map.on(L.Draw.Event.CREATED, function (e) {
-        const layer = e.layer;
-        drawnItems.addLayer(layer);
-        updateStats();
-        updateLayerList();
-    });
-
-    map.on(L.Draw.Event.EDITED, updateStats);
-
-    function updateStats() {
-        let totalArea = 0;
-        drawnItems.eachLayer(layer => {
-            if (layer instanceof L.Polygon) {
-                totalArea += L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-            }
-        });
-        document.getElementById('area-val').innerText = totalArea.toFixed(2);
-        document.getElementById('pers-val').innerText = Math.round(totalArea * 3);
+    // 3. Gestion de la Sauvegarde Locale
+    function saveToLocalStorage() {
+        const data = drawnItems.toGeoJSON();
+        localStorage.setItem('tacticalMapData', JSON.stringify(data));
+        document.getElementById('save-indicator').innerText = "Sauvegardé à " + new Date().toLocaleTimeString();
     }
 
-    // --- GESTION DES PICTOS (CRS, GM, CIE) ---
-    let currentMode = null;
+    function loadFromLocalStorage() {
+        const savedData = localStorage.getItem('tacticalMapData');
+        if (savedData) {
+            const json = JSON.parse(savedData);
+            L.geoJSON(json, {
+                pointToLayer: function (feature, latlng) {
+                    // Restaurer les pictos et textes si présents dans les propriétés
+                    if (feature.properties.customType === 'TEXT') {
+                        return createTextMarker(latlng, feature.properties.text, feature.properties.size, feature.properties.color);
+                    } else if (['CRS', 'GM', 'CIE'].includes(feature.properties.customType)) {
+                        return createUnitMarker(latlng, feature.properties.customType, feature.properties.name, feature.properties.time);
+                    }
+                    return L.marker(latlng);
+                },
+                onEachFeature: function (feature, layer) {
+                    drawnItems.addLayer(layer);
+                }
+            });
+            updateStats();
+            updateLayerList();
+        }
+    }
 
-    function setMode(mode) { currentMode = mode; }
+    // 4. Création d'objets
+    map.on(L.Draw.Event.CREATED, function (e) {
+        const layer = e.layer;
+        const color = document.getElementById('drawColor').value;
+        const fill = document.getElementById('fillColor').value;
+        if (layer.setStyle) layer.setStyle({ color: color, fillColor: fill, fillOpacity: 0.4 });
+        drawnItems.addLayer(layer);
+        saveAndRefresh();
+    });
+
+    map.on(L.Draw.Event.EDITED, saveAndRefresh);
+    map.on(L.Draw.Event.DELETED, saveAndRefresh);
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.btn-grid button').forEach(b => b.classList.remove('active'));
+        if(mode) event.target.classList.add('active');
+    }
 
     map.on('click', function(e) {
         if (!currentMode) return;
 
-        const name = prompt("Nom de l'unité ?", currentMode);
-        const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}));
+        if (currentMode === 'TEXT') {
+            const txt = prompt("Texte :");
+            if (txt) {
+                const size = document.getElementById('textSize').value;
+                const color = document.getElementById('drawColor').value;
+                const m = createTextMarker(e.latlng, txt, size, color);
+                drawnItems.addLayer(m);
+            }
+        } else {
+            const name = prompt("Nom de l'unité ?", currentMode);
+            const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
+            const m = createUnitMarker(e.latlng, currentMode, name, time);
+            drawnItems.addLayer(m);
+        }
+        setMode(null);
+        saveAndRefresh();
+    });
 
-        let shapeClass = "";
-        if(currentMode === 'CRS') shapeClass = "crs-shape";
-        if(currentMode === 'GM') shapeClass = "gm-shape shape";
-        if(currentMode === 'CIE') shapeClass = "cie-shape shape";
+    // Helpers pour créer les marqueurs (utilisés au clic et au chargement)
+    function createUnitMarker(latlng, type, name, time) {
+        let shapeHtml = "";
+        if(type === 'CRS') shapeHtml = `<div class="crs-shape"></div>`;
+        else if(type === 'GM') shapeHtml = `<div class="gm-shape shape"></div>`;
+        else shapeHtml = `<div class="cie-shape shape"></div>`;
 
         const icon = L.divIcon({
             className: 'custom-div-icon',
-            html: `
-                <div class="custom-icon-container">
-                    <div class="label-top">${name}</div>
-                    <div class="${shapeClass}"></div>
-                    <div class="label-bottom">${time}</div>
-                </div>`,
-            iconSize: [60, 50],
-            iconAnchor: [30, 25]
+            html: `<div class="custom-icon-container"><div class="label-top">${name}</div>${shapeHtml}<div class="label-bottom">${time}</div></div>`,
+            iconSize: [60, 50]
         });
+        const m = L.marker(latlng, {icon: icon, draggable: true});
+        m.feature = { properties: { customType: type, name: name, time: time } };
+        return m;
+    }
 
-        const marker = L.marker(e.latlng, {icon: icon, draggable: true}).addTo(drawnItems);
-        marker.bindPopup(`<b>${currentMode}</b><br>Unité: ${name}<br>Arrivée: ${time}`);
-        
-        currentMode = null; // Reset après pose
+    function createTextMarker(latlng, txt, size, color) {
+        const icon = L.divIcon({
+            className: 'text-label',
+            html: `<div style="color:${color}; font-size:${size}px; font-weight:bold; white-space:nowrap;">${txt}</div>`
+        });
+        const m = L.marker(latlng, {icon: icon, draggable: true});
+        m.feature = { properties: { customType: 'TEXT', text: txt, size: size, color: color } };
+        return m;
+    }
+
+    // 5. Interface & Stats
+    function saveAndRefresh() {
+        updateStats();
         updateLayerList();
-    });
+        saveToLocalStorage();
+    }
 
-    // --- GESTION DES CALQUES (LISTE) ---
+    function updateStats() {
+        let totalArea = 0;
+        drawnItems.eachLayer(l => {
+            if (l instanceof L.Polygon) totalArea += L.GeometryUtil.geodesicArea(l.getLatLngs()[0]);
+        });
+        document.getElementById('area-val').innerText = Math.round(totalArea).toLocaleString();
+        document.getElementById('pers-val').innerText = Math.round(totalArea * 3).toLocaleString();
+    }
+
     function updateLayerList() {
         const list = document.getElementById('layer-list');
         list.innerHTML = "";
-        drawnItems.eachLayer((layer, index) => {
+        drawnItems.eachLayer((layer) => {
             const id = L.stamp(layer);
             const div = document.createElement('div');
             div.className = 'layer-item';
             div.innerHTML = `
-                <input type="text" value="Calque ${id}" onchange="renameLayer(${id}, this.value)">
+                <input type="text" value="Objet ${id}" onchange="saveToLocalStorage()">
                 <input type="checkbox" checked onclick="toggleLayer(${id})">
+                <button onclick="deleteLayer(${id})" style="padding:0 5px; color:red">✕</button>
             `;
             list.appendChild(div);
         });
     }
 
     function toggleLayer(id) {
-        const layer = drawnItems.getLayer(id);
-        if (map.hasLayer(layer)) map.removeLayer(layer);
-        else map.addLayer(layer);
+        const l = drawnItems.getLayer(id);
+        map.hasLayer(l) ? map.removeLayer(l) : map.addLayer(l);
     }
 
-    // --- EXPORT / IMPORT ---
+    function deleteLayer(id) {
+        drawnItems.removeLayer(id);
+        saveAndRefresh();
+    }
+
+    function clearAll() {
+        if(confirm("Effacer tout le projet ?")) {
+            drawnItems.clearLayers();
+            localStorage.removeItem('tacticalMapData');
+            saveAndRefresh();
+        }
+    }
+
     function exportGeoJSON() {
         const data = drawnItems.toGeoJSON();
         const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'projet_carto.geojson';
+        a.href = URL.createObjectURL(blob);
+        a.download = 'plan_tactique_' + new Date().toISOString().slice(0,10) + '.geojson';
         a.click();
     }
 
-    // Note: L'import SHP/KML nécessiterait des librairies lourdes (shpjs). 
-    // Ici, nous préparons la fonction pour du KML simple.
-    document.getElementById('importFile').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            // Logique simplifiée : affichage du nom du fichier
-            alert("Fichier " + file.name + " reçu. Intégration via parser requise (ex: omnivore).");
-        };
-        reader.readAsText(file);
-    });
+    // Lancer le chargement au démarrage
+    window.onload = loadFromLocalStorage;
 
 </script>
-
 </body>
 </html>
 
