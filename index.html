@@ -91,17 +91,16 @@
             width: 100%;
         }
         .leaflet-label-picto {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
             background: white;
-            padding: 4px 8px;
+            padding: 2px 6px;
             border: 1px solid #ccc;
             border-radius: 3px;
             box-shadow: 0 0 3px rgba(0,0,0,0.3);
             text-align: center;
             white-space: nowrap;
-            position: absolute;
-            transform: translate(-50%, 0);
+            pointer-events: none;
         }
     </style>
 </head>
@@ -279,13 +278,13 @@
                 const latLng = e.latlng;
                 const marker = L.marker(latLng, { icon: customIcon, draggable: true }).addTo(drawnItems);
 
-                // Ajout des labels avec L.DivIcon pour une meilleure gestion du zoom
+                // Ajout des labels avec un décalage en pixels
                 const nameLabel = L.marker(latLng, {
                     icon: L.divIcon({
                         className: 'leaflet-label-picto',
                         html: `<div>${name}</div>`,
-                        iconSize: [100, 20],
-                        iconAnchor: [50, 0]
+                        iconSize: null,
+                        iconAnchor: [0, 0]
                     }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
@@ -294,35 +293,18 @@
                     icon: L.divIcon({
                         className: 'leaflet-label-picto',
                         html: `<div>${time}</div>`,
-                        iconSize: [100, 20],
-                        iconAnchor: [50, 20]
+                        iconSize: null,
+                        iconAnchor: [0, 0]
                     }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
 
+                // Positionnement initial des labels
+                updateLabelPositions(marker, nameLabel, timeLabel);
+
                 // Synchronisation lors du drag
                 marker.on('dragend', function() {
-                    const newLatLng = marker.getLatLng();
-                    nameLabel.setLatLng(newLatLng);
-                    timeLabel.setLatLng(newLatLng);
-                });
-
-                // Synchronisation lors du zoom
-                map.on('zoomend', function() {
-                    const zoom = map.getZoom();
-                    const scale = Math.pow(2, zoom - 12); // Ajuste la taille en fonction du zoom
-                    nameLabel.setIcon(L.divIcon({
-                        className: 'leaflet-label-picto',
-                        html: `<div style="font-size: ${16 * scale}px">${name}</div>`,
-                        iconSize: [100 * scale, 20 * scale],
-                        iconAnchor: [50 * scale, 0]
-                    }));
-                    timeLabel.setIcon(L.divIcon({
-                        className: 'leaflet-label-picto',
-                        html: `<div style="font-size: ${16 * scale}px">${time}</div>`,
-                        iconSize: [100 * scale, 20 * scale],
-                        iconAnchor: [50 * scale, 20 * scale]
-                    }));
+                    updateLabelPositions(marker, nameLabel, timeLabel);
                 });
             });
 
@@ -331,6 +313,14 @@
             document.getElementById('picto-name').value = '';
             document.getElementById('picto-time').value = '';
         });
+
+        // Fonction pour mettre à jour la position des labels
+        function updateLabelPositions(marker, nameLabel, timeLabel) {
+            const latLng = marker.getLatLng();
+            const point = map.latLngToLayerPoint(latLng);
+            nameLabel.setLatLng(map.layerPointToLatLng([point.x, point.y - 25])); // 25px au-dessus
+            timeLabel.setLatLng(map.layerPointToLatLng([point.x, point.y + 25])); // 25px en dessous
+        }
 
         // Texte personnalisé
         document.getElementById('add-text').addEventListener('click', () => {
@@ -353,6 +343,7 @@
     </script>
 </body>
 </html>
+
 
 
 
