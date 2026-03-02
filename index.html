@@ -2,24 +2,24 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Géo-Tactique V12 - Spécial Shapefile ZIP</title>
+    <title>Géo-Tactique V14 - Expert CSV & Lambert 93</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/catiline/2.9.3/catiline.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js"></script>
-    
+
     <style>
         :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; }
         body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', sans-serif; }
         #sidebar { width: var(--sidebar-width); background: #f4f4f4; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
-        #map { flex: 1; z-index: 1; background: #cbd5e0; }
-        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #eee; }
+        #map { flex: 1; z-index: 1; }
+        .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; margin-top: 5px; font-size: 0.85rem; }
         .btn-accent { background: var(--accent); color: white; }
-        .btn-shp { background: #8e44ad; color: white; } /* Violet pour le Shapefile */
-        .layer-item { padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 5px; cursor: pointer; background: white; display: flex; justify-content: space-between; align-items: center; }
+        .layer-item { padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 5px; cursor: pointer; background: white; }
         .layer-item.active { border: 2px solid var(--accent); background: #eef6ff; }
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
         .picto-btn { width: 55px; height: 35px; border: 1px solid black; color: white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -28,28 +28,26 @@
 <body>
 
     <aside id="sidebar">
-        <h2 style="margin-top:0; color: var(--dark);">SÉCURITÉ TACTIQUE</h2>
+        <h2>Tactique V14</h2>
         
         <div class="card">
-            <strong><i class="fa fa-layer-group"></i> Calques</strong>
-            <div id="layers-list" style="margin: 10px 0;"></div>
+            <strong>Calques</strong>
+            <div id="layers-list"></div>
             <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau Calque</button>
         </div>
 
+        <div class="card" style="border-left: 5px solid #e67e22;">
+            <strong>Import CSV (Auto-Lambert)</strong>
+            <input type="file" id="csv-import" class="btn" accept=".csv" style="font-size: 11px; background: #fff3e0;">
+            <p style="font-size: 9px; color: #666;">Gère : lat/lon (degrés) OU x/y (mètres Lambert 93).</p>
+        </div>
+
         <div class="card" style="border-left: 5px solid #8e44ad;">
-            <strong><i class="fa fa-file-zipper"></i> Import SHAPEFILE (.zip)</strong>
-            <input type="file" id="shp-import" class="btn" accept=".zip" style="font-size: 11px; background: #f9f9f9; border: 1px dashed #8e44ad;">
-            <p style="font-size: 10px; color: #666; margin-top:5px;">Sélectionnez le fichier <b>.zip</b> contenant vos .shp, .dbf, etc.</p>
+            <strong>Import SHAPEFILE (.zip)</strong>
+            <input type="file" id="shp-import" class="btn" accept=".zip" style="font-size: 11px;">
         </div>
 
-        <div class="card">
-            <strong><i class="fa fa-file-import"></i> Autres Formats</strong>
-            <input type="file" id="kml-csv-import" class="btn" accept=".kml,.csv" style="font-size: 11px; background: #eee;">
-            <p style="font-size: 10px; color: #666;">KML ou CSV (lat/lon)</p>
-        </div>
-
-        <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Sauvegarder Projet (.json)</button>
-        <button class="btn" style="background:#e74c3c; color:white; margin-top: 10px;" onclick="location.reload()">Réinitialiser</button>
+        <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Sauvegarder (.json)</button>
     </aside>
 
     <div id="map">
@@ -65,6 +63,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
     <script>
+        // Définition du Lambert 93 pour Proj4
+        const EPSG2154 = "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
+        const WGS84 = "EPSG:4326";
+
         const map = L.map('map').setView([48.8566, 2.3522], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
@@ -86,7 +88,7 @@
             if (window.drawControl) map.removeControl(window.drawControl);
             window.drawControl = new L.Control.Draw({
                 edit: { featureGroup: active.group },
-                draw: { marker: true, polygon: true, polyline: true, rectangle: true, circle: false }
+                draw: { marker: true, polygon: true, polyline: true, rectangle: true }
             });
             map.addControl(window.drawControl);
             updateUI();
@@ -96,72 +98,75 @@
             const list = document.getElementById('layers-list');
             list.innerHTML = projectLayers.map(l => `
                 <div class="layer-item ${l.id === currentActiveId ? 'active' : ''}" onclick="setActiveLayer('${l.id}')">
-                    <span>${l.name}</span>
+                    ${l.name}
                 </div>
             `).join('');
         }
 
-        map.on('draw:created', (e) => {
-            const active = projectLayers.find(l => l.id === currentActiveId);
-            active.group.addLayer(e.layer);
-        });
+        // --- MOTEUR CSV INTELLIGENT ---
+        document.getElementById('csv-import').onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        // --- IMPORT SHAPEFILE (.ZIP) ---
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                Papa.parse(event.target.result, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const newLayer = createNewLayer("CSV: " + file.name);
+                        const bounds = L.latLngBounds([]);
+
+                        results.data.forEach(row => {
+                            let x = parseFloat(row.x || row.X || row.lon || row.longitude || row.LONGITUDE);
+                            let y = parseFloat(row.y || row.Y || row.lat || row.latitude || row.LATITUDE);
+
+                            if (isNaN(x) || isNaN(y)) return;
+
+                            let finalLat, finalLon;
+
+                            // TEST DE PROJECTION : Si x > 180, c'est du Lambert (mètres)
+                            if (Math.abs(x) > 180) {
+                                const converted = proj4(EPSG2154, WGS84, [x, y]);
+                                finalLon = converted[0];
+                                finalLat = converted[1];
+                            } else {
+                                finalLon = x;
+                                finalLat = y;
+                            }
+
+                            const marker = L.circleMarker([finalLat, finalLon], { radius: 5, color: '#e67e22' });
+                            
+                            // Popup avec les infos du CSV
+                            let txt = "";
+                            for(let key in row) txt += `<b>${key}</b>: ${row[key]}<br>`;
+                            marker.bindPopup(txt);
+
+                            newLayer.group.addLayer(marker);
+                            bounds.extend([finalLat, finalLon]);
+                        });
+
+                        if (bounds.isValid()) map.fitBounds(bounds);
+                        else alert("Aucune coordonnée valide trouvée.");
+                    }
+                });
+            };
+            reader.readAsText(file);
+        };
+
+        // --- MOTEUR SHAPEFILE ZIP ---
         document.getElementById('shp-import').onchange = function(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(event) {
-                const buffer = event.target.result;
-                
-                // Utilisation de shpjs pour parser le buffer du zip
-                shp(buffer).then(function(geojson) {
-                    const layerName = file.name.replace('.zip', '');
-                    const newLayer = createNewLayer("SHP: " + layerName);
-                    
-                    const dataLayer = L.geoJSON(geojson, {
-                        onEachFeature: function(feature, layer) {
-                            if (feature.properties) {
-                                let popupContent = "<b>Données Shapefile :</b><br>";
-                                for (let key in feature.properties) {
-                                    popupContent += `<b>${key}</b>: ${feature.properties[key]}<br>`;
-                                }
-                                layer.bindPopup(popupContent);
-                            }
-                        },
-                        style: { color: "#8e44ad", weight: 2, fillOpacity: 0.2 }
-                    });
-
-                    dataLayer.eachLayer(l => newLayer.group.addLayer(l));
+                shp(event.target.result).then(function(geojson) {
+                    const newLayer = createNewLayer("SHP: " + file.name);
+                    const dl = L.geoJSON(geojson).eachLayer(l => newLayer.group.addLayer(l));
                     map.fitBounds(newLayer.group.getBounds());
-                }).catch(err => {
-                    alert("Erreur lors de la lecture du Shapefile. Vérifiez que le ZIP contient bien les fichiers .shp, .dbf et .prj.");
-                    console.error(err);
                 });
             };
             reader.readAsArrayBuffer(file);
-        };
-
-        // --- IMPORT KML / CSV ---
-        document.getElementById('kml-csv-import').onchange = function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            const ext = file.name.split('.').pop().toLowerCase();
-            const newLayer = createNewLayer("Import: " + file.name);
-
-            reader.onload = function(event) {
-                let omniLayer;
-                if (ext === 'kml') omniLayer = omnivore.kml.parse(event.target.result);
-                else if (ext === 'csv') omniLayer = omnivore.csv.parse(event.target.result);
-                
-                if (omniLayer) {
-                    omniLayer.eachLayer(l => newLayer.group.addLayer(l));
-                    map.fitBounds(newLayer.group.getBounds());
-                }
-            };
-            reader.readAsText(file);
         };
 
         // --- PICTOS ---
@@ -169,16 +174,13 @@
         map.on('click', (e) => {
             if (!unitToPlace) return;
             const active = projectLayers.find(l => l.id === currentActiveId);
-            const name = prompt("Nom de l'unité ?");
+            const name = prompt("Unité ?");
             if (name) {
                 const colors = { CRS: 'blue', GM: '#5D4037', CIE: 'red', BRAV: 'green' };
-                const html = `<div style="border:2px solid black; background:${colors[unitToPlace]}; color:white; font-weight:bold; padding:2px; font-size:10px; text-align:center;">${unitToPlace}<br><span style="background:white; color:black; font-size:9px; padding:0 2px;">${name}</span></div>`;
-                const marker = L.marker(e.latlng, {
-                    icon: L.divIcon({ className: '', html: html, iconSize: [55, 35] }),
-                    draggable: true
-                });
-                marker.feature = { properties: { customHtml: html, name: name } };
-                active.group.addLayer(marker);
+                const html = `<div style="border:2px solid black; background:${colors[unitToPlace]}; color:white; font-size:10px; text-align:center;">${unitToPlace}<br><span style="background:white; color:black;">${name}</span></div>`;
+                const m = L.marker(e.latlng, { icon: L.divIcon({ html: html, iconSize: [55, 35] }), draggable: true });
+                m.feature = { properties: { customHtml: html } };
+                active.group.addLayer(m);
             }
             unitToPlace = null; map.getContainer().style.cursor = '';
         });
@@ -188,11 +190,11 @@
             const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = "plan_tactique_final.json";
+            a.download = "tactique_v14.json";
             a.click();
         }
 
-        createNewLayer("Zone de travail 1");
+        createNewLayer("Secteur 1");
     </script>
 </body>
 </html>
