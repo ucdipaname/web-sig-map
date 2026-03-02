@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartographie Tactique - Import/Export Pro</title>
+    <title>Cartographie Tactique - Édition Active</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
@@ -22,6 +22,7 @@
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
         button { cursor: pointer; padding: 8px; border: 1px solid #bdc3c7; background: #fff; border-radius: 4px; font-weight: bold; font-size: 0.8em; }
         button.active { background: #3498db !important; color: white !important; }
+        button.edit-mode { background: #f39c12; color: white; border: none; width: 100%; margin-top: 5px; }
 
         /* Calques à droite */
         .layer-group { background: #fff; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px; padding: 8px; cursor: pointer; }
@@ -38,8 +39,7 @@
         .gm-shape { background: #8B4513; }
         .cie-shape { background: #ff0000; border-radius: 50%; }
 
-        input[type="file"] { font-size: 0.75em; width: 100%; margin-top: 5px; }
-        .stats { font-size: 0.9em; font-weight: bold; color: #2c3e50; }
+        .stats { font-size: 1em; font-weight: bold; color: #2c3e50; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -54,16 +54,23 @@
             <button onclick="setMode('TEXT')">T Texte</button>
         </div>
     </div>
+
+    <div class="box">
+        <h3>Édition des tracés</h3>
+        <button id="editBtn" class="edit-mode" onclick="toggleEdit()">✏️ Activer l'Édition</button>
+        <p style="font-size: 0.7em; color: #7f8c8d; margin-top: 5px;">Activez pour modifier les formes existantes sur le calque actif.</p>
+    </div>
+
     <div class="box">
         <h3>Styles</h3>
-        <input type="color" id="drawColor" value="#3498db" style="width:100%">
+        <input type="color" id="drawColor" value="#3498db" style="width:100%" onchange="updateCurrentStyle()">
     </div>
+
     <div class="box">
-        <h3>Mesures</h3>
+        <h3>Mesures Globales</h3>
         <div class="stats">Surface : <span id="area-val">0</span> m²</div>
-        <div class="stats">Population (x3) : <span id="pers-val">0</span></div>
+        <div class="stats">Pers. (x3) : <span id="pers-val">0</span></div>
     </div>
-    <button onclick="clearStorage()" style="color:red; font-size:0.7em; border:none; background:none; cursor:pointer;">Réinitialiser la carte</button>
 </div>
 
 <div id="map"></div>
@@ -74,16 +81,10 @@
         <button style="width:100%; margin-bottom:10px; background:#2ecc71; color:white; border:none;" onclick="createNewLayer()">+ Nouveau Calque</button>
         <div id="layers-container"></div>
     </div>
-
     <div class="box">
-        <h3>Importation</h3>
-        <p style="font-size:0.7em; margin:0;">KML, GeoJSON ou SHP (.zip)</p>
-        <input type="file" id="fileInput" accept=".kml,.json,.geojson,.zip">
-    </div>
-
-    <div class="box">
-        <h3>Exportation</h3>
-        <button style="width:100%" onclick="exportProject()">Télécharger Projet (.json)</button>
+        <h3>Import / Export</h3>
+        <input type="file" id="fileInput" accept=".kml,.json,.geojson,.zip" style="margin-bottom:10px;">
+        <button style="width:100%" onclick="exportProject()">Exporter Projet</button>
     </div>
 </div>
 
@@ -97,20 +98,56 @@
     const map = L.map('map').setView([48.8566, 2.3522], 13);
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-    const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
-
-    L.control.layers({"Route": osm, "Satellite": sat, "Allégé": light}).addTo(map);
+    
+    L.control.layers({"Route": osm, "Satellite": sat}).addTo(map);
     L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
 
     let layerGroups = {}; 
     let activeLayerId = null;
     let currentMode = null;
+    let isEditing = false;
 
-    const drawControl = new L.Control.Draw({ draw: { marker:false, circle:false, circlemarker:false } });
+    // Configuration Draw
+    const drawControl = new L.Control.Draw({
+        draw: { marker:false, circle:false, circlemarker:false },
+        edit: false // On gère l'édition manuellement via toggleEdit
+    });
     map.addControl(drawControl);
 
+    // --- GESTION ÉDITION ---
+    function toggleEdit() {
+        if (!activeLayerId) return;
+        const group = layerGroups[activeLayerId].group;
+        const btn = document.getElementById('editBtn');
+
+        if (!isEditing) {
+            // Activer l'édition sur le groupe actif
+            group.eachLayer(layer => {
+                if (layer.editing) layer.editing.enable();
+            });
+            btn.innerText = "✅ Sauvegarder les modifs";
+            btn.style.background = "#27ae60";
+            isEditing = true;
+        } else {
+            // Désactiver et sauvegarder
+            group.eachLayer(layer => {
+                if (layer.editing) layer.editing.disable();
+            });
+            btn.innerText = "✏️ Activer l'Édition";
+            btn.style.background = "#f39c12";
+            isEditing = false;
+            saveToLocal();
+            updateStats();
+        }
+    }
+
+    // Mise à jour des stats pendant qu'on bouge les points
+    map.on('draw:editvertex', function() {
+        updateStats();
+    });
+
     // --- GESTION CALQUES ---
-    function createNewLayer(name = "Groupe " + (Object.keys(layerGroups).length + 1), id = Date.now()) {
+    function createNewLayer(name = "Calque " + (Object.keys(layerGroups).length + 1), id = Date.now()) {
         const group = new L.FeatureGroup().addTo(map);
         layerGroups[id] = { group: group, name: name };
         activeLayerId = id;
@@ -124,7 +161,11 @@
         for (let id in layerGroups) {
             const div = document.createElement('div');
             div.className = `layer-group ${activeLayerId == id ? 'active-layer' : ''}`;
-            div.onclick = () => { activeLayerId = id; renderLayers(); };
+            div.onclick = () => { 
+                if(isEditing) toggleEdit(); // Fermer l'édition si on change de calque
+                activeLayerId = id; 
+                renderLayers(); 
+            };
             div.innerHTML = `
                 <div class="layer-header">
                     <input type="checkbox" checked onclick="event.stopPropagation(); toggleVis(${id})">
@@ -153,7 +194,7 @@
 
     // --- DESSIN ET PICTOS ---
     function setMode(mode) { 
-        if(!activeLayerId) createNewLayer();
+        if(isEditing) toggleEdit();
         currentMode = mode; 
         document.querySelectorAll('.btn-grid button').forEach(b => b.classList.remove('active'));
         if(mode) event.target.classList.add('active');
@@ -168,15 +209,15 @@
     });
 
     map.on('click', (e) => {
-        if(!currentMode || !activeLayerId) return;
+        if(!currentMode || !activeLayerId || isEditing) return;
         const color = document.getElementById('drawColor').value;
         let marker;
 
         if(currentMode === 'TEXT') {
             const t = prompt("Texte :"); if(!t) return;
-            marker = L.marker(e.latlng, { icon: L.divIcon({ className:'text-label', html:`<b style="color:${color}">${t}</b>` }), draggable:true });
+            marker = L.marker(e.latlng, { icon: L.divIcon({ className:'text-label', html:`<b style="color:${color}; white-space:nowrap;">${t}</b>` }), draggable:true });
         } else {
-            const n = prompt("Nom ?"), h = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+            const n = prompt("Nom ?") || "", h = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
             let s = currentMode==='CRS'?'crs-shape':(currentMode==='GM'?'gm-shape shape':'cie-shape shape');
             marker = L.marker(e.latlng, { icon: L.divIcon({ className:'picto', html:`<div class="custom-icon-container"><div class="label-top">${n}</div><div class="${s}"></div><div class="label-bottom">${h}</div></div>` }), draggable:true });
         }
@@ -195,24 +236,18 @@
             let geojson;
             try {
                 if (ext === 'kml') {
-                    const parser = new DOMParser();
-                    const kml = parser.parseFromString(event.target.result, "text/xml");
+                    const kml = new DOMParser().parseFromString(event.target.result, "text/xml");
                     geojson = toGeoJSON.kml(kml);
                 } else if (ext === 'zip') {
                     geojson = await shp(event.target.result);
                 } else {
                     geojson = JSON.parse(event.target.result);
                 }
-                
-                // On crée un nouveau calque pour l'import
-                createNewLayer("Import: " + file.name);
-                L.geoJSON(geojson, {
-                    onEachFeature: (f, l) => layerGroups[activeLayerId].group.addLayer(l)
-                });
+                createNewLayer(file.name);
+                L.geoJSON(geojson, { onEachFeature: (f, l) => layerGroups[activeLayerId].group.addLayer(l) });
                 map.fitBounds(layerGroups[activeLayerId].group.getBounds());
-            } catch (err) { alert("Erreur lors de l'import : " + err); }
+            } catch (err) { alert("Erreur import : " + err); }
         };
-
         if (ext === 'zip') reader.readAsArrayBuffer(file);
         else reader.readAsText(file);
     };
@@ -220,7 +255,11 @@
     // --- UTILITAIRES ---
     function updateStats() {
         let a = 0;
-        for (let i in layerGroups) layerGroups[i].group.eachLayer(l => { if(l instanceof L.Polygon) a += L.GeometryUtil.geodesicArea(l.getLatLngs()[0]); });
+        for (let i in layerGroups) {
+            layerGroups[i].group.eachLayer(l => { 
+                if(l instanceof L.Polygon) a += L.GeometryUtil.geodesicArea(l.getLatLngs()[0]); 
+            });
+        }
         document.getElementById('area-val').innerText = Math.round(a).toLocaleString();
         document.getElementById('pers-val').innerText = Math.round(a * 3).toLocaleString();
     }
@@ -228,18 +267,19 @@
     function saveToLocal() {
         const d = {};
         for (let i in layerGroups) d[i] = { name: layerGroups[i].name, geo: layerGroups[i].group.toGeoJSON() };
-        localStorage.setItem('map_v6', JSON.stringify(d));
+        localStorage.setItem('map_v7', JSON.stringify(d));
     }
 
     function exportProject() {
-        const blob = new Blob([localStorage.getItem('map_v6')], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mission.json'; a.click();
+        const data = localStorage.getItem('map_v7');
+        const blob = new Blob([data], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mission_tactique.json'; a.click();
     }
 
     function clearStorage() { if(confirm("Réinitialiser ?")) { localStorage.clear(); location.reload(); } }
 
     window.onload = () => {
-        const s = localStorage.getItem('map_v6');
+        const s = localStorage.getItem('map_v7');
         if(s) {
             const j = JSON.parse(s);
             for(let i in j) { 
