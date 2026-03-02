@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Géo-Tactique V30 – Pixel Perfect</title>
+<title>Géo-Tactique V30 – Pixel Perfect Final</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
@@ -152,7 +152,7 @@ function logEvent(text){
   document.getElementById("event-log").innerHTML = eventLog.slice(-20).join("<br>");
 }
 
-// Fonction de création marker pixel-perfect
+// Création marker pixel-perfect
 function createMarker(latlng, html){
   const tempDiv=document.createElement('div');
   tempDiv.style.position='absolute'; tempDiv.style.visibility='hidden';
@@ -166,12 +166,18 @@ function createMarker(latlng, html){
 
 // Marker click
 map.on('click', function(e){
+  // Force création sur premier calque si aucun actif
+  if(!activeLayer){
+    if(layers.length>0) activeLayer=layers[0];
+    else addLayer("Secteur 1");
+  }
+
   if(selectedUnit && !modePicto){
     moveUnit(selectedUnit, e.latlng);
     selectedUnit=null;
     return;
   }
-  if(!modePicto || !activeLayer) return;
+  if(!modePicto) return;
 
   const name=prompt("Nom unité :"); if(!name){modePicto=null;return;}
   const radius=prompt("Rayon (mètres) optionnel :"); 
@@ -240,4 +246,5 @@ addLayer("Secteur 1");
 </script>
 </body>
 </html>
+
 
