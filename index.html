@@ -104,19 +104,22 @@
             margin-bottom: 5px;
             width: 100%;
         }
-        .picto-label {
-            text-align: center;
-            font-size: 12px;
-            color: #666;
-        }
         .leaflet-label-picto {
             font-size: 14px;
             font-weight: bold;
             background: white;
-            padding: 2px 5px;
+            padding: 3px 6px;
             border: 1px solid #ccc;
             border-radius: 3px;
-            box-shadow: 0 0 2px rgba(0,0,0,0.2);
+            box-shadow: 0 0 3px rgba(0,0,0,0.3);
+            text-align: center;
+            white-space: nowrap;
+        }
+        .leaflet-label-name {
+            margin-bottom: -20px !important;
+        }
+        .leaflet-label-time {
+            margin-top: 20px !important;
         }
     </style>
 </head>
@@ -364,37 +367,39 @@
             const customIcon = L.icon(iconOptions[selectedPictoType]);
 
             map.once('click', (e) => {
-                const marker = L.marker(e.latlng, {
+                const latLng = e.latlng;
+                const marker = L.marker(latLng, {
                     icon: customIcon,
                     draggable: true
                 }).addTo(drawnItems);
 
                 // Ajout des labels au-dessus et en dessous
-                const nameLabel = L.marker(e.latlng, {
+                const nameLabel = L.marker(latLng, {
                     icon: L.divIcon({
-                        className: 'leaflet-label-picto',
+                        className: 'leaflet-label-picto leaflet-label-name',
                         html: `<div>${name}</div>`
                     }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
 
-                const timeLabel = L.marker(e.latlng, {
+                const timeLabel = L.marker(latLng, {
                     icon: L.divIcon({
-                        className: 'leaflet-label-picto',
+                        className: 'leaflet-label-picto leaflet-label-time',
                         html: `<div>${time}</div>`
                     }),
                     zIndexOffset: 1000
                 }).addTo(drawnItems);
 
-                // Positionne les labels
-                nameLabel.setLatLng(L.latLng(e.latlng.lat + 0.00015, e.latlng.lng));
-                timeLabel.setLatLng(L.latLng(e.latlng.lat - 0.00015, e.latlng.lng));
+                // Ajuste la position des labels
+                const offset = 0.00015;
+                nameLabel.setLatLng(L.latLng(latLng.lat + offset, latLng.lng));
+                timeLabel.setLatLng(L.latLng(latLng.lat - offset, latLng.lng));
 
                 // Met à jour la position des labels quand le picto est déplacé
                 marker.on('dragend', function() {
                     const newLatLng = marker.getLatLng();
-                    nameLabel.setLatLng(L.latLng(newLatLng.lat + 0.00015, newLatLng.lng));
-                    timeLabel.setLatLng(L.latLng(newLatLng.lat - 0.00015, newLatLng.lng));
+                    nameLabel.setLatLng(L.latLng(newLatLng.lat + offset, newLatLng.lng));
+                    timeLabel.setLatLng(L.latLng(newLatLng.lat - offset, newLatLng.lng));
                 });
             });
 
