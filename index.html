@@ -2,196 +2,135 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Géo-Tactique V23 - Alignement Zéro Défaut</title>
-    
+    <title>Géo-Tactique V24 - Fix Position</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-
     <style>
-        :root { --sidebar-width: 320px; --accent: #0070F6; --dark: #1e272e; }
-        body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #sidebar { width: var(--sidebar-width); background: #f8f9fa; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; display: flex; flex-direction: column; }
-        #map { flex: 1; z-index: 1; position: relative; }
+        body { margin: 0; display: flex; height: 100vh; font-family: sans-serif; }
+        #sidebar { width: 300px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; z-index: 1000; }
+        #map { flex: 1; position: relative; }
 
-        /* --- LE CORRECTIF CRUCIAL --- */
-        /* On force Leaflet à ignorer ses marges par défaut sur nos icônes perso */
-        .leaflet-marker-icon.tactical-div-icon {
-            margin: 0 !important; 
+        /* --- LE FIX ABSOLU --- */
+        /* On neutralise TOUT ce que Leaflet essaie de faire */
+        .leaflet-marker-icon.tactical-fix {
+            margin: 0 !important;
             padding: 0 !important;
-            border: none !important;
+            outline: none !important;
             background: none !important;
+            border: none !important;
         }
 
-        .tactical-wrapper {
+        /* On crée une boîte qui remonte par rapport au point d'origine */
+        .anchor-point {
+            position: absolute;
+            bottom: 0;   /* Le bas de la boîte sera sur le point de clic */
+            left: 50%;   /* On centre horizontalement */
+            transform: translateX(-50%); /* Centrage parfait */
             display: flex;
             flex-direction: column;
             align-items: center;
             width: 80px;
-            /* On ne fait plus de translation ici, on laisse le JavaScript gérer l'ancrage */
             pointer-events: none;
         }
 
-        .label-name { 
-            background: white; border: 1px solid black; font-weight: bold; 
-            font-size: 11px; padding: 1px 4px; white-space: nowrap; border-radius: 3px 3px 0 0;
-            line-height: 1.2;
-        }
-        .label-box {
-            width: 60px; height: 22px; border: 2px solid black; color: white;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 12px; margin: -1px 0; z-index: 2;
-        }
-        .label-time {
-            background: #222; color: #0f0; font-family: monospace;
-            font-size: 10px; padding: 1px 4px; border: 1px solid black; border-radius: 0 0 3px 3px;
-        }
+        .l-name { background: white; border: 1px solid #000; font-size: 11px; font-weight: bold; padding: 1px 4px; white-space: nowrap; }
+        .l-box { width: 60px; height: 22px; border: 2px solid #000; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; margin-top: -1px; }
+        .l-time { background: #222; color: #0f0; font-family: monospace; font-size: 10px; padding: 1px 4px; border: 1px solid #000; margin-top: -1px; }
 
-        #search-container { position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 5px; background: white; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        #search-input { width: 220px; border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
-        .card { background: white; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ddd; }
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; margin-top: 5px; font-size: 0.85rem; }
-        .btn-accent { background: var(--accent); color: white; }
-        #picto-box { position: absolute; bottom: 30px; right: 10px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
-        .picto-btn { width: 65px; height: 35px; border: 1px solid black; color: white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .layer-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
-        .layer-item.active { background: #e7f1ff; font-weight: bold; border-left: 4px solid var(--accent); }
+        .btn { width: 100%; padding: 10px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        #picto-box { position: absolute; bottom: 20px; right: 20px; z-index: 2000; background: white; padding: 10px; border: 2px solid #333; display: flex; flex-direction: column; gap: 5px; }
+        .p-btn { width: 60px; height: 30px; color: white; border: 1px solid #000; cursor: pointer; font-size: 10px; font-weight: bold; text-align: center; line-height: 30px; }
     </style>
 </head>
 <body>
 
-    <aside id="sidebar">
-        <h2 style="margin:0 0 15px 0;"><i class="fa fa-crosshairs"></i> PRECISION V23</h2>
-        <div class="card">
-            <strong><i class="fa fa-ruler"></i> Mesures</strong>
-            <div id="measure-output" style="font-size: 0.85rem; color: #555; margin-top:5px;">Cliquez sur un tracé.</div>
-        </div>
-        <div class="card">
-            <strong>Calques</strong>
-            <div id="layers-list" style="margin: 10px 0;"></div>
-            <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau Calque</button>
-        </div>
-        <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Exporter (.geojson)</button>
-    </aside>
+<div id="sidebar">
+    <h3>TACTIQUE V24</h3>
+    <div id="layers"></div>
+    <button class="btn" onclick="createNewLayer()">+ Nouveau Calque</button>
+    <hr>
+    <button class="btn" style="background: green; color: white;" onclick="exportData()">Exporter .geojson</button>
+</div>
 
-    <div id="map">
-        <div id="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher une adresse...">
-            <button class="btn btn-accent" style="margin:0; width:40px;" onclick="searchAddress()"><i class="fa fa-search"></i></button>
-        </div>
-        <div id="picto-box">
-            <div class="picto-btn" style="background:blue" onclick="prepareUnit('CRS')">CRS</div>
-            <div class="picto-btn" style="background:#5D4037" onclick="prepareUnit('GM')">GM</div>
-            <div class="picto-btn" style="background:red" onclick="prepareUnit('CIE')">CIE</div>
-            <div class="picto-btn" style="background:green" onclick="prepareUnit('BRAV')">BRAV</div>
-            <div class="picto-btn" style="background:#2c3e50" onclick="prepareUnit('INFO')">INFO</div>
-        </div>
+<div id="map">
+    <div id="picto-box">
+        <div class="p-btn" style="background: blue;" onclick="setUnit('CRS')">CRS</div>
+        <div class="p-btn" style="background: brown;" onclick="setUnit('GM')">GM</div>
+        <div class="p-btn" style="background: red;" onclick="setUnit('CIE')">CIE</div>
+        <div class="p-btn" style="background: #2c3e50;" onclick="setUnit('INFO')">INFO</div>
     </div>
+</div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
-    <script>
-        const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 14, layers: [light] });
-        
-        L.control.layers({"Plan": light, "Satellite": satellite}, null, {position: 'topright'}).addTo(map);
+<script>
+    const map = L.map('map').setView([48.8566, 2.3522], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        let projectLayers = [];
-        let currentActiveId = null;
-        let pendingUnit = null;
+    let currentLayer = null;
+    let typeToPlace = null;
 
-        async function searchAddress() {
-            const q = document.getElementById('search-input').value;
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
-            const data = await res.json();
-            if(data[0]) map.setView([data[0].lat, data[0].lon], 17);
-        }
+    function createNewLayer() {
+        currentLayer = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: currentLayer },
+            draw: { circle: false, marker: true }
+        });
+        map.addControl(drawControl);
+    }
 
-        function createNewLayer(name = "Secteur") {
-            const group = new L.FeatureGroup().addTo(map);
-            const id = "L-" + Date.now();
-            projectLayers.push({ id, name, group });
-            setActiveLayer(id);
-            updateUI();
-        }
+    function setUnit(t) { 
+        typeToPlace = t; 
+        map.getContainer().style.cursor = 'crosshair'; 
+    }
 
-        function setActiveLayer(id) {
-            currentActiveId = id;
-            const active = projectLayers.find(l => l.id === id);
-            if (window.drawControl) map.removeControl(window.drawControl);
-            window.drawControl = new L.Control.Draw({
-                edit: { featureGroup: active.group },
-                draw: { polygon: true, polyline: true, rectangle: true, marker: true, circle: false }
-            });
-            map.addControl(window.drawControl);
-            updateUI();
-        }
+    map.on('click', function(e) {
+        if (!typeToPlace || !currentLayer) return;
 
-        function prepareUnit(type) { 
-            pendingUnit = type; 
-            map.getContainer().style.cursor = 'crosshair'; 
-        }
+        const name = prompt("NOM :");
+        if (!name) { resetPlacement(); return; }
+        const time = prompt("HEURE :", new Date().getHours() + ":" + String(new Date().getMinutes()).padStart(2, '0'));
 
-        map.on('click', (e) => {
-            if (!pendingUnit) return;
-            
-            const uName = prompt("IDENTIFIANT :");
-            if (!uName) { cancelPlacement(); return; }
-            const uTime = prompt("HORAIRE :", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
-            
-            const colors = { CRS: 'blue', GM: '#5D4037', CIE: 'red', BRAV: 'green', INFO: '#2c3e50' };
-            
-            const html = `
-                <div class="tactical-wrapper">
-                    <div class="label-name">${uName}</div>
-                    <div class="label-box" style="background:${colors[pendingUnit]}">${pendingUnit}</div>
-                    <div class="label-time">${uTime}</div>
-                </div>
-            `;
+        const colors = { CRS: 'blue', GM: 'brown', CIE: 'red', INFO: '#2c3e50' };
 
-            const icon = L.divIcon({
-                className: 'tactical-div-icon', // On utilise notre classe CSS propre
-                html: html,
-                iconSize: [80, 50],   // On définit une taille réelle
-                iconAnchor: [40, 50]  // MILIEU de la largeur (80/2=40), BAS de la hauteur (50)
-            });
+        // HTML avec le wrapper anchor-point
+        const html = `
+            <div class="anchor-point">
+                <div class="l-name">${name}</div>
+                <div class="l-box" style="background: ${colors[typeToPlace]}">${typeToPlace}</div>
+                <div class="l-time">${time}</div>
+            </div>
+        `;
 
-            const marker = L.marker(e.latlng, { icon: icon, draggable: true });
-            projectLayers.find(l => l.id === currentActiveId).group.addLayer(marker);
-            cancelPlacement();
+        // L'astuce : iconSize [1,1] et iconAnchor [0,0] pour coller au clic
+        const icon = L.divIcon({
+            className: 'tactical-fix',
+            html: html,
+            iconSize: [1, 1], 
+            iconAnchor: [0, 0] 
         });
 
-        function cancelPlacement() { pendingUnit = null; map.getContainer().style.cursor = ''; }
+        L.marker(e.latlng, { icon: icon, draggable: true }).addTo(currentLayer);
+        resetPlacement();
+    });
 
-        map.on('draw:created', (e) => {
-            const layer = e.layer;
-            projectLayers.find(l => l.id === currentActiveId).group.addLayer(layer);
-        });
+    function resetPlacement() { 
+        typeToPlace = null; 
+        map.getContainer().style.cursor = ''; 
+    }
 
-        function updateUI() {
-            document.getElementById('layers-list').innerHTML = projectLayers.map(l => 
-                `<div class="layer-item ${l.id === currentActiveId ? 'active' : ''}" onclick="setActiveLayer('${l.id}')">${l.name}</div>`
-            ).join('');
-        }
+    function exportData() {
+        const data = currentLayer.toGeoJSON();
+        const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'plan.geojson';
+        a.click();
+    }
 
-        function exportProject() {
-            const all = [];
-            projectLayers.forEach(l => {
-                const gj = l.group.toGeoJSON();
-                gj.features.forEach(f => { f.properties.calque = l.name; all.push(f); });
-            });
-            const blob = new Blob([JSON.stringify({type:"FeatureCollection", features:all})], {type:"application/json"});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "plan_v23.geojson"; a.click();
-        }
+    createNewLayer();
+</script>
 
-        createNewLayer("Secteur 1");
-    </script>
 </body>
 </html>
