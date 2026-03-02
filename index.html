@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Géo-Tactique V6 - Import Groupé Fixé</title>
+    <title>Géo-Tactique V7 - Import Manuel Garanti</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -13,8 +13,8 @@
         :root { --sidebar-width: 340px; --accent: #0070F6; --dark: #1e272e; --light-grey: #F4F4F4; --danger: #e74c3c; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; display: flex; flex-direction: column; }
-        #map { flex: 1; position: relative; }
+        #sidebar { width: var(--sidebar-width); background: var(--light-grey); padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; display: flex; flex-direction: column; z-index: 1000; }
+        #map { flex: 1; position: relative; z-index: 1; }
 
         .card { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .info-box { background: #eef6ff; padding: 10px; border-radius: 6px; border: 1px solid var(--accent); font-weight: bold; color: #0056b3; font-size: 0.85rem; margin-top: 5px; }
@@ -23,48 +23,48 @@
         .btn-accent { background: var(--accent); color: white; }
         .btn-danger { background: var(--danger); color: white; }
         
-        .layer-item { padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 5px; cursor: pointer; position: relative; background: white; }
+        .layer-item { padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 5px; cursor: pointer; background: white; display: flex; justify-content: space-between; align-items: center; }
         .layer-item.active { border: 2px solid var(--accent); background: #f0f7ff; }
-        .layer-controls { position: absolute; right: 10px; top: 10px; }
 
+        /* Style des unités */
         .unit-label-container { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
         .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
         .unit-info { background: white; border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; }
         
-        #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .picto-btn { width: 50px; height: 30px; border: 1px solid black; color: white; font-size: 9px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <aside id="sidebar">
-        <h2 style="margin:0 0 15px 0;">Tactique Pro</h2>
+        <h2 style="margin:0 0 15px 0; color: var(--dark);">SÉCURITÉ TACTIQUE</h2>
         
         <div class="card">
-            <h3><i class="fa-solid fa-layer-group"></i> Calques</h3>
+            <h3><i class="fa-solid fa-layer-group"></i> Calques du Projet</h3>
             <div id="layers-list"></div>
             <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau Calque</button>
         </div>
 
         <div class="card">
-            <h3><i class="fa-solid fa-calculator"></i> Calculs</h3>
-            <div id="measure-display" class="info-box">Aucune zone sélectionnée</div>
+            <h3><i class="fa-solid fa-calculator"></i> Analyse de Surface</h3>
+            <div id="measure-display" class="info-box">Sélectionnez une zone</div>
             <div style="margin-top:8px;">
-                <small>Densité : <span id="ratio-val">3</span> pers/m²</small>
+                <small>Densité (pers/m²) : <span id="ratio-val">3</span></small>
                 <input type="range" id="ratio-slider" min="0.5" max="8" step="0.5" value="3" style="width:100%;">
             </div>
         </div>
 
         <div class="card">
-            <h3><i class="fa-solid fa-file-import"></i> Projet</h3>
-            <button class="btn btn-accent" style="background:#27ae60" onclick="exportProject()">Exporter (.json)</button>
+            <h3><i class="fa-solid fa-file-export"></i> Sauvegarde Intégrale</h3>
+            <button class="btn btn-accent" style="background:#27ae60" onclick="exportProject()">Exporter le Projet (.json)</button>
             <label class="btn btn-accent" style="margin-top:5px; background:#8e44ad; display:block; text-align:center;">
-                Importer (.json)
+                Importer un Projet
                 <input type="file" id="import-file" style="display:none" accept=".json">
             </label>
         </div>
         
-        <button class="btn btn-danger" onclick="resetAll()">Réinitialiser</button>
+        <button class="btn btn-danger" style="margin-top:auto;" onclick="location.reload()">Réinitialiser la carte</button>
     </aside>
 
     <div id="map">
@@ -82,6 +82,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.min.js"></script>
 
     <script>
+        // Initialisation Map
         const map = L.map('map').setView([48.8566, 2.3522], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
@@ -89,10 +90,10 @@
         let currentActiveId = null;
         let pendingUnit = null;
 
-        // --- GESTION CALQUES ---
+        // --- FONCTION DE CRÉATION DE CALQUE ---
         function createNewLayer(name = "Nouveau Calque", id = "L-" + Date.now()) {
             const group = new L.FeatureGroup().addTo(map);
-            const layerObj = { id, name, group, visible: true };
+            const layerObj = { id: id, name: name, group: group, visible: true };
             projectLayers.push(layerObj);
             setActiveLayer(id);
             return layerObj;
@@ -100,26 +101,32 @@
 
         function setActiveLayer(id) {
             currentActiveId = id;
-            const active = projectLayers.find(l => l.id === id);
+            updateSidebarUI();
             
-            // Mise à jour UI
-            const container = document.getElementById('layers-list');
-            container.innerHTML = projectLayers.map(l => `
-                <div class="layer-item ${l.id === currentActiveId ? 'active' : ''}" onclick="setActiveLayer('${l.id}')">
-                    <span>${l.name}</span>
-                    <div class="layer-controls">
-                        <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'}" onclick="toggleLayer('${l.id}', event)"></i>
-                    </div>
-                </div>
-            `).join('');
-
-            // Mise à jour Draw
+            // On rebranche l'outil de dessin uniquement sur le calque actif
             if (window.drawControl) map.removeControl(window.drawControl);
+            const activeObj = projectLayers.find(l => l.id === id);
+            
             window.drawControl = new L.Control.Draw({
-                edit: { featureGroup: active.group },
-                draw: { marker: false, circle: false, circlemarker: false, polyline: true, polygon: true, rectangle: true }
+                edit: { featureGroup: activeObj.group },
+                draw: { marker: false, circle: false, circlemarker: false, polyline: true, polygon: true }
             });
             map.addControl(window.drawControl);
+        }
+
+        function updateSidebarUI() {
+            const list = document.getElementById('layers-list');
+            list.innerHTML = "";
+            projectLayers.forEach(l => {
+                const item = document.createElement('div');
+                item.className = `layer-item ${l.id === currentActiveId ? 'active' : ''}`;
+                item.innerHTML = `
+                    <span>${l.name}</span>
+                    <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'}" onclick="toggleLayer('${l.id}', event)"></i>
+                `;
+                item.onclick = () => setActiveLayer(l.id);
+                list.appendChild(item);
+            });
         }
 
         function toggleLayer(id, e) {
@@ -127,28 +134,26 @@
             const l = projectLayers.find(x => x.id === id);
             l.visible = !l.visible;
             if (l.visible) map.addLayer(l.group); else map.removeLayer(l.group);
-            setActiveLayer(currentActiveId);
+            updateSidebarUI();
         }
 
         // --- DESSIN & CALCULS ---
         map.on('draw:created', (e) => {
             const layer = e.layer;
             const active = projectLayers.find(l => l.id === currentActiveId);
-            layer.feature = layer.feature || { properties: { Nom: "Zone", color: "#3388ff" } };
+            
+            // On attache les propriétés de base
+            layer.feature = { properties: { Nom: "Zone Tactique", color: "#3388ff", opacity: 0.3 } };
             active.group.addLayer(layer);
-            setupObject(layer);
-            calculate(layer);
-        });
-
-        map.on('draw:edited', (e) => {
-            e.layers.eachLayer(l => calculate(l));
+            attachEvents(layer);
+            showStats(layer);
         });
 
         document.getElementById('ratio-slider').oninput = function() {
             document.getElementById('ratio-val').innerText = this.value;
         };
 
-        function calculate(layer) {
+        function showStats(layer) {
             if (layer instanceof L.Polygon) {
                 const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
                 const ratio = document.getElementById('ratio-slider').value;
@@ -159,20 +164,23 @@
             }
         }
 
-        // --- PICTOS ---
+        // --- UNITÉS & PICTOS ---
         function prepareUnit(type) { pendingUnit = type; map.getContainer().style.cursor = 'crosshair'; }
 
         map.on('click', (e) => {
             if (!pendingUnit) return;
             const active = projectLayers.find(l => l.id === currentActiveId);
-            const name = prompt(pendingUnit === 'TEXT' ? "Texte :" : "Nom de l'unité ?");
-            if (!name) { pendingUnit = null; map.getContainer().style.cursor = ''; return; }
+            const label = prompt(pendingUnit === 'TEXT' ? "Texte à afficher :" : "Identifiant de l'unité ?");
+            if (!label) { pendingUnit = null; map.getContainer().style.cursor = ''; return; }
 
-            let html = (pendingUnit === 'TEXT') 
-                ? `<div style="font-weight:bold; color:black; font-size:14px; white-space:nowrap;">${name}</div>`
+            const colors = { CRS: 'blue', GM: '#5D4037', CIE: 'red', BRAV: 'green' };
+            const isText = (pendingUnit === 'TEXT');
+            
+            const html = isText 
+                ? `<div style="font-weight:bold; color:black; font-size:14px; background:white; padding:2px; border:1px solid black;">${label}</div>`
                 : `<div class="unit-label-container">
-                    <div class="unit-box" style="background:${{CRS:'blue', GM:'#5D4037', CIE:'red', BRAV:'green'}[pendingUnit]}">${pendingUnit}</div>
-                    <div class="unit-info">${name}</div>
+                    <div class="unit-box" style="background:${colors[pendingUnit]}">${pendingUnit}</div>
+                    <div class="unit-info">${label}</div>
                    </div>`;
 
             const marker = L.marker(e.latlng, {
@@ -180,46 +188,54 @@
                 draggable: true
             });
 
-            marker.feature = { properties: { Nom: name, Type: pendingUnit, customHtml: html } };
+            // Sauvegarde CRUCIALE des données pour l'export
+            marker.feature = { properties: { Nom: label, Type: pendingUnit, customHtml: html } };
             active.group.addLayer(marker);
-            setupObject(marker);
-            pendingUnit = null; map.getContainer().style.cursor = '';
+            attachEvents(marker);
+            
+            pendingUnit = null; 
+            map.getContainer().style.cursor = '';
         });
 
-        function setupObject(layer) {
+        function attachEvents(layer) {
             layer.on('click', (ev) => {
                 L.DomEvent.stopPropagation(ev);
-                calculate(layer);
+                showStats(layer);
                 const props = layer.feature.properties;
-                const menu = L.popup().setLatLng(ev.latlng).setContent(`
-                    <div style="min-width:150px">
-                        <small>Nom :</small><br><input type="text" value="${props.Nom}" onchange="this.parentElement.dataset.val=this.value" id="popname">
-                        <br><button class="btn btn-danger" style="padding:4px; font-size:10px;" onclick="deleteObj()">Supprimer</button>
+                
+                const popup = L.popup().setLatLng(ev.latlng).setContent(`
+                    <div style="min-width:140px">
+                        <small>Modifier le nom :</small><br>
+                        <input type="text" id="edit-pop-name" value="${props.Nom}" style="width:100%"><br>
+                        <button class="btn btn-danger" style="padding:4px; font-size:10px; margin-top:10px" onclick="deleteElement()">Supprimer</button>
                     </div>
                 `).openOn(map);
-                
-                window.deleteObj = () => {
+
+                window.deleteElement = () => {
                     projectLayers.find(l => l.id === currentActiveId).group.removeLayer(layer);
                     map.closePopup();
                 };
-                
-                document.getElementById('popname').onchange = (e) => {
-                    props.Nom = e.target.value;
-                    layer.bindTooltip(props.Nom, {permanent: true, direction:'center'}).openTooltip();
+
+                document.getElementById('edit-pop-name').onchange = (input) => {
+                    props.Nom = input.target.value;
+                    layer.bindTooltip(props.Nom, {permanent: false}).openTooltip();
                 };
             });
         }
 
-        // --- IMPORT / EXPORT (CORRIGÉ) ---
+        // --- MOTEUR D'IMPORT / EXPORT (VERSION MANUELLE) ---
         function exportProject() {
-            const data = projectLayers.map(l => ({
-                name: l.name,
-                features: l.group.toGeoJSON()
-            }));
-            const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+            const projectData = projectLayers.map(l => {
+                return {
+                    name: l.name,
+                    visible: l.visible,
+                    features: l.group.toGeoJSON()
+                };
+            });
+            const blob = new Blob([JSON.stringify(projectData)], {type: "application/json"});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = "projet_tactique.json";
+            a.download = "tactique_complet.json";
             a.click();
         }
 
@@ -227,40 +243,54 @@
             const reader = new FileReader();
             reader.onload = function() {
                 const data = JSON.parse(reader.result);
-                // On garde les calques existants et on ajoute les nouveaux proprement
+                
+                // Nettoyage de sécurité
+                projectLayers.forEach(l => map.removeLayer(l.group));
+                projectLayers = [];
+
+                // Reconstitution MANUELLE
                 data.forEach(savedLayer => {
-                    const lObj = createNewLayer(savedLayer.name);
+                    const lObj = createNewLayer(savedLayer.name, savedLayer.id);
                     
-                    // On importe TOUT le contenu GeoJSON dans ce SEUL groupe
-                    const geojsonLayer = L.geoJSON(savedLayer.features, {
-                        pointToLayer: (feature, latlng) => {
-                            return L.marker(latlng, {
-                                icon: L.divIcon({ className: 'custom-icon', html: feature.properties.customHtml, iconSize: [80, 40] }),
+                    // On parcourt les entités du JSON une par une
+                    savedLayer.features.features.forEach(feat => {
+                        let newObj;
+                        const coords = feat.geometry.coordinates;
+
+                        if (feat.geometry.type === "Point") {
+                            // C'est un Marker (Picto ou Texte)
+                            const latlng = [coords[1], coords[0]];
+                            newObj = L.marker(latlng, {
+                                icon: L.divIcon({ 
+                                    className: 'custom-icon', 
+                                    html: feat.properties.customHtml, 
+                                    iconSize: [80, 40] 
+                                }),
                                 draggable: true
                             });
-                        },
-                        onEachFeature: (feature, layer) => {
-                            layer.feature = feature;
-                            if (feature.properties.color && layer.setStyle) {
-                                layer.setStyle({ color: feature.properties.color, fillColor: feature.properties.color, fillOpacity: 0.3 });
-                            }
-                            setupObject(layer);
+                        } else if (feat.geometry.type === "Polygon") {
+                            // C'est une Surface
+                            const latlngs = coords[0].map(c => [c[1], c[0]]);
+                            newObj = L.polygon(latlngs, {
+                                color: feat.properties.color || "#3388ff",
+                                fillOpacity: 0.3
+                            });
+                        }
+
+                        if (newObj) {
+                            newObj.feature = feat; // On restaure les propriétés
+                            lObj.group.addLayer(newObj);
+                            attachEvents(newObj);
                         }
                     });
-
-                    // On transfère les éléments du GeoJSON vers notre FeatureGroup de calque
-                    geojsonLayer.eachLayer(layer => {
-                        lObj.group.addLayer(layer);
-                    });
                 });
-                setActiveLayer(projectLayers[projectLayers.length - 1].id);
+                updateSidebarUI();
             };
             reader.readAsText(e.target.files[0]);
         };
 
-        function resetAll() { if(confirm("Tout effacer ?")) { location.reload(); } }
-
-        createNewLayer("Secteur Tactique 1");
+        // Lancement
+        createNewLayer("Zone d'Opération 1");
     </script>
 </body>
 </html>
