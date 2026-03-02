@@ -10,7 +10,7 @@
     <!-- Leaflet Draw -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <!-- Leaflet Control Layers -->
+    <!-- Leaflet Control Geocoder -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     <!-- Leaflet Shapefile -->
@@ -24,13 +24,14 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
+            overflow: hidden;
         }
         #map {
             position: absolute;
             top: 0;
-            right: 0;
-            bottom: 0;
             left: 250px;
+            right: 250px;
+            bottom: 0;
         }
         #left-panel, #right-panel {
             position: absolute;
@@ -41,6 +42,7 @@
             padding: 10px;
             overflow-y: auto;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
         }
         #left-panel {
             left: 0;
@@ -284,7 +286,7 @@
         document.getElementById('calc-population').addEventListener('click', () => {
             let totalArea = 0;
             drawnItems.eachLayer(layer => {
-                if (layer instanceof L.Polygon || layer instanceof L.Polyline) {
+                if (layer instanceof L.Polygon) {
                     const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
                     totalArea += area;
                 }
@@ -330,6 +332,7 @@
     </script>
 </body>
 </html>
+
 
 
 
