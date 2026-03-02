@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Géo-Tactique V22 - Correction Alignement</title>
+    <title>Géo-Tactique V23 - Alignement Zéro Défaut</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -19,25 +19,31 @@
         #sidebar { width: var(--sidebar-width); background: #f8f9fa; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; display: flex; flex-direction: column; }
         #map { flex: 1; z-index: 1; position: relative; }
 
-        /* --- STRUCTURE PICTO CORRIGÉE --- */
+        /* --- LE CORRECTIF CRUCIAL --- */
+        /* On force Leaflet à ignorer ses marges par défaut sur nos icônes perso */
+        .leaflet-marker-icon.tactical-div-icon {
+            margin: 0 !important; 
+            padding: 0 !important;
+            border: none !important;
+            background: none !important;
+        }
+
         .tactical-wrapper {
-            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* On remonte tout le bloc pour que le BAS soit au centre du clic */
-            transform: translate(-50%, -100%); 
             width: 80px;
+            /* On ne fait plus de translation ici, on laisse le JavaScript gérer l'ancrage */
             pointer-events: none;
         }
 
         .label-name { 
             background: white; border: 1px solid black; font-weight: bold; 
             font-size: 11px; padding: 1px 4px; white-space: nowrap; border-radius: 3px 3px 0 0;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            line-height: 1.2;
         }
         .label-box {
-            width: 60px; height: 24px; border: 2px solid black; color: white;
+            width: 60px; height: 22px; border: 2px solid black; color: white;
             display: flex; align-items: center; justify-content: center;
             font-weight: bold; font-size: 12px; margin: -1px 0; z-index: 2;
         }
@@ -46,24 +52,13 @@
             font-size: 10px; padding: 1px 4px; border: 1px solid black; border-radius: 0 0 3px 3px;
         }
 
-        /* Barre de Recherche */
-        #search-container {
-            position: absolute; top: 10px; left: 50px; z-index: 1000;
-            display: flex; gap: 5px; background: white; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
+        #search-container { position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 5px; background: white; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         #search-input { width: 220px; border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
-
         .card { background: white; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ddd; }
         .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; margin-top: 5px; font-size: 0.85rem; }
         .btn-accent { background: var(--accent); color: white; }
-        
-        #picto-box { 
-            position: absolute; bottom: 30px; right: 10px; 
-            background: white; padding: 10px; border-radius: 8px; 
-            border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px;
-        }
+        #picto-box { position: absolute; bottom: 30px; right: 10px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
         .picto-btn { width: 65px; height: 35px; border: 1px solid black; color: white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        
         .layer-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
         .layer-item.active { background: #e7f1ff; font-weight: bold; border-left: 4px solid var(--accent); }
     </style>
@@ -71,23 +66,17 @@
 <body>
 
     <aside id="sidebar">
-        <h2 style="margin:0 0 15px 0;"><i class="fa fa-map-location-dot"></i> OPS-MAP V22</h2>
-        
+        <h2 style="margin:0 0 15px 0;"><i class="fa fa-crosshairs"></i> PRECISION V23</h2>
         <div class="card">
             <strong><i class="fa fa-ruler"></i> Mesures</strong>
             <div id="measure-output" style="font-size: 0.85rem; color: #555; margin-top:5px;">Cliquez sur un tracé.</div>
         </div>
-
         <div class="card">
             <strong>Calques</strong>
             <div id="layers-list" style="margin: 10px 0;"></div>
             <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau Calque</button>
         </div>
-
-        <div class="card">
-            <input type="file" id="shp-import" accept=".zip" class="btn" style="font-size:10px; background:#eee;">
-            <button class="btn" style="background:#27ae60; color:white; margin-top:10px;" onclick="exportProject()">Exporter SIG (.geojson)</button>
-        </div>
+        <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Exporter (.geojson)</button>
     </aside>
 
     <div id="map">
@@ -95,7 +84,6 @@
             <input type="text" id="search-input" placeholder="Rechercher une adresse...">
             <button class="btn btn-accent" style="margin:0; width:40px;" onclick="searchAddress()"><i class="fa fa-search"></i></button>
         </div>
-
         <div id="picto-box">
             <div class="picto-btn" style="background:blue" onclick="prepareUnit('CRS')">CRS</div>
             <div class="picto-btn" style="background:#5D4037" onclick="prepareUnit('GM')">GM</div>
@@ -146,7 +134,6 @@
             updateUI();
         }
 
-        // --- GESTION DES PICTOS (ALIGNEMENT PIED DE BOÎTE) ---
         function prepareUnit(type) { 
             pendingUnit = type; 
             map.getContainer().style.cursor = 'crosshair'; 
@@ -170,10 +157,10 @@
             `;
 
             const icon = L.divIcon({
-                className: '', // Important : vide pour ne pas hériter des styles Leaflet
+                className: 'tactical-div-icon', // On utilise notre classe CSS propre
                 html: html,
-                iconSize: [0, 0],   // Point de dimension nulle
-                iconAnchor: [0, 0]  // On ne laisse pas Leaflet décaler
+                iconSize: [80, 50],   // On définit une taille réelle
+                iconAnchor: [40, 50]  // MILIEU de la largeur (80/2=40), BAS de la hauteur (50)
             });
 
             const marker = L.marker(e.latlng, { icon: icon, draggable: true });
@@ -186,16 +173,6 @@
         map.on('draw:created', (e) => {
             const layer = e.layer;
             projectLayers.find(l => l.id === currentActiveId).group.addLayer(layer);
-            layer.on('click', () => {
-                const gj = layer.toGeoJSON();
-                if (layer instanceof L.Polygon) {
-                    const area = Math.round(turf.area(gj));
-                    document.getElementById('measure-output').innerHTML = `Surface: <b>${area} m²</b><br>Capacité (3p/m²): <b>${area*3} pers.</b>`;
-                } else if (layer instanceof L.Polyline) {
-                    const len = Math.round(turf.length(gj, {units:'meters'}));
-                    document.getElementById('measure-output').innerHTML = `Longueur: <b>${len} m</b>`;
-                }
-            });
         });
 
         function updateUI() {
@@ -211,7 +188,7 @@
                 gj.features.forEach(f => { f.properties.calque = l.name; all.push(f); });
             });
             const blob = new Blob([JSON.stringify({type:"FeatureCollection", features:all})], {type:"application/json"});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "plan_v22.geojson"; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "plan_v23.geojson"; a.click();
         }
 
         createNewLayer("Secteur 1");
