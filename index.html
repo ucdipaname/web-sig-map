@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Géo-Tactique V19 - Horodatage & Précision</title>
+    <title>Géo-Tactique V21 - Expert Opérationnel</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -15,84 +16,96 @@
     <style>
         :root { --sidebar-width: 320px; --accent: #0070F6; --dark: #1e272e; }
         body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #sidebar { width: var(--sidebar-width); background: #f8f9fa; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; }
-        #map { flex: 1; z-index: 1; position: relative; }
         
-        /* Style des étiquettes de pictos */
-        .tactical-label {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
+        /* Sidebar */
+        #sidebar { width: var(--sidebar-width); background: #f8f9fa; padding: 15px; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; display: flex; flex-direction: column; }
+        #map { flex: 1; z-index: 1; position: relative; background: #eee; }
+
+        /* Barre de Recherche */
+        #search-container {
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            display: flex; gap: 5px; background: white; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #search-input { width: 220px; border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
+
+        /* Pictos Tactiques (Correction Ancrage) */
+        .tactical-marker-container {
+            display: flex; flex-direction: column; align-items: center;
+            width: 100px; margin-left: -50px; margin-top: -60px; /* Force l'ancrage sur le bas de l'étiquette */
             pointer-events: none;
         }
         .label-name { 
-            background: rgba(255,255,255,0.9); 
-            color: black; 
-            font-weight: bold; 
-            font-size: 11px; 
-            padding: 0 4px; 
-            border: 1px solid #666;
-            border-bottom: none;
-            border-radius: 3px 3px 0 0;
-            white-space: nowrap;
+            background: white; border: 1px solid black; font-weight: bold; 
+            font-size: 11px; padding: 1px 4px; white-space: nowrap; border-radius: 3px 3px 0 0;
         }
         .label-box {
-            width: 55px;
-            height: 22px;
-            border: 2px solid black;
-            color: white;
-            font-weight: bold;
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-shadow: 1px 1px 0px rgba(0,0,0,0.5);
+            width: 60px; height: 24px; border: 2px solid black; color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 12px; margin: -1px 0; text-shadow: 1px 1px 0px rgba(0,0,0,0.5);
         }
         .label-time {
-            background: #333;
-            color: #00ff00; /* Vert type digital pour l'heure */
-            font-family: monospace;
-            font-size: 10px;
-            padding: 0 4px;
-            border-radius: 0 0 3px 3px;
-            border: 1px solid black;
-            border-top: none;
+            background: #222; color: #0f0; font-family: monospace;
+            font-size: 10px; padding: 1px 4px; border: 1px solid black; border-radius: 0 0 3px 3px;
         }
 
-        .card { background: white; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ddd; }
-        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; margin-top: 5px; }
+        /* UI Elements */
+        .card { background: white; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 10px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; margin-top: 5px; font-size: 0.85rem; }
         .btn-accent { background: var(--accent); color: white; }
-        #search-container { position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 5px; background: white; padding: 5px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        #picto-box { position: absolute; bottom: 30px; right: 10px; background: white; padding: 10px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+        .layer-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; }
+        .layer-item:hover { background: #f0f0f0; }
+        .layer-item.active { background: #e7f1ff; font-weight: bold; border-left: 4px solid var(--accent); }
+
+        #picto-box { 
+            position: absolute; bottom: 30px; right: 10px; 
+            background: white; padding: 10px; border-radius: 8px; 
+            border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 8px;
+        }
         .picto-btn { width: 65px; height: 35px; border: 1px solid black; color: white; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        
+        .color-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; display: inline-block; margin: 2px; border: 2px solid transparent; }
+        .color-dot.active { border-color: black; transform: scale(1.1); }
     </style>
 </head>
 <body>
 
     <aside id="sidebar">
-        <h2 style="margin:0 0 10px 0;">SÉCU-LOG V19</h2>
+        <h2 style="margin:0 0 15px 0; color:var(--dark);"><i class="fa fa-shield-halved"></i> TACTIQUE PRO</h2>
         
         <div class="card">
-            <strong><i class="fa fa-ruler"></i> Mesures</strong>
-            <div id="measure-output" style="font-size:0.85rem; color:#444; margin-top:5px;">Cliquez sur un tracé.</div>
+            <strong><i class="fa fa-ruler-combined"></i> Mesures & Capacité</strong>
+            <div id="measure-output" style="font-size: 0.85rem; color: #555; margin-top:5px;">Cliquez sur un tracé ou une zone.</div>
+        </div>
+
+        <div class="card">
+            <strong>Couleur de tracé</strong>
+            <div id="color-palette" style="margin-top:5px;">
+                <div class="color-dot active" style="background:#3388ff" data-color="#3388ff"></div>
+                <div class="color-dot" style="background:#e74c3c" data-color="#e74c3c"></div>
+                <div class="color-dot" style="background:#2ecc71" data-color="#2ecc71"></div>
+                <div class="color-dot" style="background:#f1c40f" data-color="#f1c40f"></div>
+            </div>
         </div>
 
         <div class="card">
             <strong>Calques</strong>
-            <div id="layers-list"></div>
-            <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau</button>
+            <div id="layers-list" style="max-height: 200px; overflow-y: auto; margin: 10px 0;"></div>
+            <button class="btn btn-accent" onclick="createNewLayer()">+ Nouveau Calque</button>
         </div>
 
         <div class="card">
-            <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Export SIG (.geojson)</button>
+            <strong>Imports (SHP/CSV)</strong>
+            <input type="file" id="shp-import" accept=".zip" class="btn" style="font-size:10px; background:#eee;">
+            <input type="file" id="csv-import" accept=".csv" class="btn" style="font-size:10px; background:#eee; margin-top:5px;">
         </div>
+
+        <button class="btn" style="background:#27ae60; color:white;" onclick="exportProject()">Exporter SIG (.geojson)</button>
+        <button class="btn" style="background:#e74c3c; color:white; margin-top:auto;" onclick="location.reload()">Réinitialiser</button>
     </aside>
 
     <div id="map">
         <div id="search-container">
-            <input type="text" id="search-input" placeholder="Rechercher rue..." style="border:1px solid #ccc; padding:5px;">
+            <input type="text" id="search-input" placeholder="Rechercher une adresse...">
             <button class="btn btn-accent" style="margin:0; width:40px;" onclick="searchAddress()"><i class="fa fa-search"></i></button>
         </div>
 
@@ -109,23 +122,45 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
     <script>
+        // --- INITIALISATION CARTE ---
         const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
         const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 14, layers: [light] });
-        L.control.layers({"Plan": light, "Satellite": satellite}, null, {position: 'topright'}).addTo(map);
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+
+        const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [light] });
+        L.control.layers({"Plan Épuré": light, "Satellite": satellite, "OpenStreetMap": osm}, null, {position: 'topright'}).addTo(map);
 
         let projectLayers = [];
         let currentActiveId = null;
         let pendingUnit = null;
+        let currentDrawColor = "#3388ff";
+        const EPSG2154 = "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
 
+        // --- RECHERCHE ---
         async function searchAddress() {
             const q = document.getElementById('search-input').value;
-            const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
-            const d = await r.json();
-            if(d[0]) map.setView([d[0].lat, d[0].lon], 17);
+            if(!q) return;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
+            const data = await res.json();
+            if(data[0]) {
+                map.setView([data[0].lat, data[0].lon], 17);
+                L.popup().setLatLng([data[0].lat, data[0].lon]).setContent(`<b>${q}</b>`).openOn(map);
+            }
         }
+        document.getElementById('search-input').onkeypress = (e) => { if(e.key==='Enter') searchAddress(); };
 
-        function createNewLayer(name = "Calque Tactique") {
+        // --- GESTION COULEURS ---
+        document.querySelectorAll('.color-dot').forEach(dot => {
+            dot.onclick = () => {
+                document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+                dot.classList.add('active');
+                currentDrawColor = dot.dataset.color;
+                if(currentActiveId) setActiveLayer(currentActiveId);
+            };
+        });
+
+        // --- CALQUES ---
+        function createNewLayer(name = "Nouveau Calque") {
             const group = new L.FeatureGroup().addTo(map);
             const id = "L-" + Date.now();
             projectLayers.push({ id, name, group });
@@ -137,29 +172,53 @@
             currentActiveId = id;
             const active = projectLayers.find(l => l.id === id);
             if (window.drawControl) map.removeControl(window.drawControl);
+            
             window.drawControl = new L.Control.Draw({
                 edit: { featureGroup: active.group },
-                draw: { polygon: true, polyline: true, rectangle: true, marker: true, circle: false }
+                draw: {
+                    polygon: { shapeOptions: { color: currentDrawColor, fillOpacity: 0.4 } },
+                    polyline: { shapeOptions: { color: currentDrawColor } },
+                    rectangle: { shapeOptions: { color: currentDrawColor } },
+                    marker: true, circle: false
+                }
             });
             map.addControl(window.drawControl);
             updateUI();
         }
 
-        // --- GESTION DES PICTOS ET ÉTIQUETTES ---
+        map.on('draw:created', (e) => {
+            const layer = e.layer;
+            const active = projectLayers.find(l => l.id === currentActiveId);
+            active.group.addLayer(layer);
+            layer.on('click', () => displayMeasures(layer));
+            displayMeasures(layer);
+        });
+
+        function displayMeasures(layer) {
+            const gj = layer.toGeoJSON();
+            if (layer instanceof L.Polygon) {
+                const area = Math.round(turf.area(gj));
+                document.getElementById('measure-output').innerHTML = `Surface : <b>${area} m²</b><br>Capacité (3p/m²) : <b>${area*3} pers.</b>`;
+            } else if (layer instanceof L.Polyline) {
+                const len = Math.round(turf.length(gj, {units:'meters'}));
+                document.getElementById('measure-output').innerHTML = `Longueur : <b>${len} m</b>`;
+            }
+        }
+
+        // --- PICTOS (CORRECTION ANCRAGE V21) ---
         function prepareUnit(type) { pendingUnit = type; map.getContainer().style.cursor = 'crosshair'; }
 
         map.on('click', (e) => {
             if (!pendingUnit) return;
             
-            const uName = prompt("NOM de l'unité (ex: 4/7) :");
+            const uName = prompt("IDENTIFIANT (ex: 1/7) :");
             if (!uName) { cancelPlacement(); return; }
-            
-            const uTime = prompt("HEURE (ex: 14:30) :", new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}));
+            const uTime = prompt("HORAIRE (ex: 12:00) :", new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
             
             const colors = { CRS: 'blue', GM: '#5D4037', CIE: 'red', BRAV: 'green', POINT: '#2c3e50' };
             
             const html = `
-                <div class="tactical-label">
+                <div class="tactical-marker-container">
                     <div class="label-name">${uName}</div>
                     <div class="label-box" style="background:${colors[pendingUnit]}">${pendingUnit}</div>
                     <div class="label-time">${uTime}</div>
@@ -167,15 +226,13 @@
             `;
 
             const icon = L.divIcon({
-                className: '',
+                className: 'tactical-div-icon',
                 html: html,
-                iconSize: [65, 60],
-                iconAnchor: [32, 30] // ANCRAGE CENTRAL : [Largeur/2, Hauteur/2]
+                iconSize: [0, 0],   // Taille nulle pour ne pas interférer avec le CSS
+                iconAnchor: [0, 0]  // L'ancrage est géré par les marges CSS dans tactical-marker-container
             });
 
             const marker = L.marker(e.latlng, { icon: icon, draggable: true });
-            
-            // Stockage propre pour export SIG
             marker.feature = { properties: { Nom: uName, Heure: uTime, Type: pendingUnit } };
             
             projectLayers.find(l => l.id === currentActiveId).group.addLayer(marker);
@@ -184,25 +241,52 @@
 
         function cancelPlacement() { pendingUnit = null; map.getContainer().style.cursor = ''; }
 
-        map.on('draw:created', (e) => {
-            const layer = e.layer;
-            projectLayers.find(l => l.id === currentActiveId).group.addLayer(layer);
-            layer.on('click', () => {
-                const gj = layer.toGeoJSON();
-                if (layer instanceof L.Polygon) {
-                    const area = Math.round(turf.area(gj));
-                    document.getElementById('measure-output').innerHTML = `Surface: <b>${area} m²</b><br>Jauge (3p/m²): <b>${area*3} pers.</b>`;
-                } else {
-                    const len = Math.round(turf.length(gj, {units:'meters'}));
-                    document.getElementById('measure-output').innerHTML = `Longueur: <b>${len} m</b>`;
-                }
-            });
-        });
+        // --- IMPORTS ---
+        document.getElementById('shp-import').onchange = function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                shp(ev.target.result).then(geojson => {
+                    const l = createNewLayer("SHP: " + file.name);
+                    L.geoJSON(geojson).eachLayer(layer => l.group.addLayer(layer));
+                    map.fitBounds(l.group.getBounds());
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        };
 
+        document.getElementById('csv-import').onchange = function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                Papa.parse(ev.target.result, {
+                    header: true, skipEmptyLines: true,
+                    complete: function(res) {
+                        const l = createNewLayer("CSV: " + file.name);
+                        const b = L.latLngBounds([]);
+                        res.data.forEach(row => {
+                            let x = parseFloat(row.x || row.lon || row.longitude);
+                            let y = parseFloat(row.y || row.lat || row.latitude);
+                            if(isNaN(x) || isNaN(y)) return;
+                            let coords = (Math.abs(x) > 180) ? proj4(EPSG2154, "EPSG:4326", [x,y]) : [x,y];
+                            const m = L.circleMarker([coords[1], coords[0]], {radius:5, color:'orange'}).addTo(l.group);
+                            b.extend([coords[1], coords[0]]);
+                        });
+                        map.fitBounds(b);
+                    }
+                });
+            };
+            reader.readAsText(file);
+        };
+
+        // --- EXPORT & UI ---
         function updateUI() {
-            document.getElementById('layers-list').innerHTML = projectLayers.map(l => 
-                `<div onclick="setActiveLayer('${l.id}')" style="padding:5px; cursor:pointer; ${l.id===currentActiveId?'background:#eef6ff; font-weight:bold; border-left:3px solid blue;':''}">${l.name}</div>`
-            ).join('');
+            const list = document.getElementById('layers-list');
+            list.innerHTML = projectLayers.map(l => `
+                <div class="layer-item ${l.id === currentActiveId ? 'active' : ''}" onclick="setActiveLayer('${l.id}')">
+                    <i class="fa fa-folder"></i> ${l.name}
+                </div>
+            `).join('');
         }
 
         function exportProject() {
@@ -212,10 +296,10 @@
                 gj.features.forEach(f => { f.properties.calque = l.name; all.push(f); });
             });
             const blob = new Blob([JSON.stringify({type:"FeatureCollection", features:all})], {type:"application/json"});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "plan_tactique_v19.geojson"; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "plan_tactique_final.geojson"; a.click();
         }
 
-        createNewLayer("Secteur Principal");
+        createNewLayer("Secteur Initial");
     </script>
 </body>
 </html>
