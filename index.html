@@ -19,8 +19,6 @@
     <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
     <!-- FileSaver.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <!-- Leaflet Drag Marker -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-drag-marker@1.1.0/dist/leaflet-drag-marker.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -108,8 +106,17 @@
         }
         .picto-label {
             text-align: center;
-            font-size: 10px;
+            font-size: 12px;
             color: #666;
+        }
+        .leaflet-label-picto {
+            font-size: 14px;
+            font-weight: bold;
+            background: white;
+            padding: 2px 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            box-shadow: 0 0 2px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -335,19 +342,19 @@
 
             const iconOptions = {
                 CRS: {
-                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,0 0,40 40,40" fill="blue" stroke="black"/><text x="20" y="10" text-anchor="middle" font-size="3" fill="white">' + name + '</text><text x="20" y="35" text-anchor="middle" font-size="3" fill="white">' + time + '</text></svg>',
+                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,0 0,40 40,40" fill="blue" stroke="black"/></svg>',
                     iconSize: [40, 40],
                     iconAnchor: [20, 20],
                     className: 'draggable-marker'
                 },
                 GM: {
-                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect x="0" y="0" width="40" height="40" fill="brown" stroke="black"/><text x="20" y="10" text-anchor="middle" font-size="3" fill="white">' + name + '</text><text x="20" y="35" text-anchor="middle" font-size="3" fill="white">' + time + '</text></svg>',
+                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect x="0" y="0" width="40" height="40" fill="brown" stroke="black"/></svg>',
                     iconSize: [40, 40],
                     iconAnchor: [20, 20],
                     className: 'draggable-marker'
                 },
                 CIE: {
-                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="red" stroke="black"/><text x="20" y="10" text-anchor="middle" font-size="3" fill="white">' + name + '</text><text x="20" y="35" text-anchor="middle" font-size="3" fill="white">' + time + '</text></svg>',
+                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="red" stroke="black"/></svg>',
                     iconSize: [40, 40],
                     iconAnchor: [20, 20],
                     className: 'draggable-marker'
@@ -355,13 +362,39 @@
             };
 
             const customIcon = L.icon(iconOptions[selectedPictoType]);
+
             map.once('click', (e) => {
                 const marker = L.marker(e.latlng, {
                     icon: customIcon,
                     draggable: true
                 }).addTo(drawnItems);
+
+                // Ajout des labels au-dessus et en dessous
+                const nameLabel = L.marker(e.latlng, {
+                    icon: L.divIcon({
+                        className: 'leaflet-label-picto',
+                        html: `<div>${name}</div>`
+                    }),
+                    zIndexOffset: 1000
+                }).addTo(drawnItems);
+
+                const timeLabel = L.marker(e.latlng, {
+                    icon: L.divIcon({
+                        className: 'leaflet-label-picto',
+                        html: `<div>${time}</div>`
+                    }),
+                    zIndexOffset: 1000
+                }).addTo(drawnItems);
+
+                // Positionne les labels
+                nameLabel.setLatLng(L.latLng(e.latlng.lat + 0.00015, e.latlng.lng));
+                timeLabel.setLatLng(L.latLng(e.latlng.lat - 0.00015, e.latlng.lng));
+
+                // Met à jour la position des labels quand le picto est déplacé
                 marker.on('dragend', function() {
-                    // Optionnel : faire quelque chose quand le picto est déplacé
+                    const newLatLng = marker.getLatLng();
+                    nameLabel.setLatLng(L.latLng(newLatLng.lat + 0.00015, newLatLng.lng));
+                    timeLabel.setLatLng(L.latLng(newLatLng.lat - 0.00015, newLatLng.lng));
                 });
             });
 
@@ -392,6 +425,7 @@
     </script>
 </body>
 </html>
+
 
 
 
