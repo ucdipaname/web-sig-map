@@ -51,9 +51,14 @@
         .unit-brav span { transform: rotate(-45deg); }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
 
-        /* Nouveau style pour les options de texte dans la barre latérale */
         .text-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         .text-options-grid label { font-size: 11px; font-weight: bold; display: block; margin-bottom: 3px; }
+        
+        /* Style pour la gestion de visibilité dans la liste */
+        .layer-item { padding:10px; margin-bottom:5px; border-radius:8px; border:1px solid #ddd; position: relative; cursor: pointer; }
+        .layer-controls { margin-top:5px; font-size:11px; display:flex; align-items:center; gap:10px; }
+        .layer-visibility { position: absolute; top: 10px; right: 10px; cursor: pointer; color: #666; }
+        .layer-visibility.hidden { color: #ccc; }
     </style>
 </head>
 <body>
@@ -144,9 +149,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script>
-        // --- CONFIGURATION CARTE ---
         const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { crossOrigin: 'Anonymous' });
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { crossOrigin: 'Anonymous' });
         const map = L.map('map', { center: [48.8566, 2.3522], zoom: 15, layers: [osmLight] });
         
         let layersData = [];
@@ -163,12 +166,26 @@
         function addNewLayer(name) {
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
-            layersData.push({ id, name, group, showNames: false });
+            layersData.push({ id, name, group, showNames: false, visible: true });
             setActiveLayer(id);
         }
 
         function setActiveLayer(id) {
             activeLayerId = id;
+            updateUI();
+        }
+
+        // Nouvelle fonction pour masquer/afficher un calque entier
+        function toggleLayerVisibility(id, event) {
+            if(event) event.stopPropagation();
+            const layerObj = layersData.find(l => l.id === id);
+            layerObj.visible = !layerObj.visible;
+            
+            if (layerObj.visible) {
+                map.addLayer(layerObj.group);
+            } else {
+                map.removeLayer(layerObj.group);
+            }
             updateUI();
         }
 
@@ -193,10 +210,13 @@
         function updateUI() {
             const list = document.getElementById('layers-list');
             list.innerHTML = layersData.map(l => `
-                <div style="padding:10px; margin-bottom:5px; border-radius:8px; border:1px solid #ddd; background:${l.id === activeLayerId ? '#e3f2fd' : 'white'}; cursor:pointer;">
-                    <div onclick="setActiveLayer(${l.id})" style="font-weight:bold;">${l.name}</div>
-                    <div style="margin-top:5px; font-size:11px; display:flex; align-items:center; gap:5px;">
-                        <input type="checkbox" ${l.showNames ? 'checked' : ''} onchange="toggleLayerNames(${l.id})"> Activer les noms
+                <div class="layer-item" style="background:${l.id === activeLayerId ? '#e3f2fd' : 'white'};">
+                    <div onclick="setActiveLayer(${l.id})" style="font-weight:bold; padding-right:25px;">${l.name}</div>
+                    <div class="layer-visibility ${l.visible ? '' : 'hidden'}" onclick="toggleLayerVisibility(${l.id}, event)">
+                        <i class="fa-solid ${l.visible ? 'fa-eye' : 'fa-eye-slash'}"></i>
+                    </div>
+                    <div class="layer-controls">
+                        <label><input type="checkbox" ${l.showNames ? 'checked' : ''} onchange="toggleLayerNames(${l.id})"> Noms</label>
                     </div>
                 </div>
             `).join('');
@@ -215,9 +235,7 @@
             const group = layersData.find(l => l.id === activeLayerId).group;
             const layer = group.getLayer(layerId);
             if(layer) {
-                if (layer.setStyle) {
-                    layer.setStyle({ color: color, fillColor: color, fillOpacity: opacity });
-                }
+                if (layer.setStyle) layer.setStyle({ color: color, fillColor: color, fillOpacity: opacity });
                 if(!layer.feature) layer.feature = { properties: {} };
                 layer.feature.properties.color = color;
                 layer.feature.properties.opacity = opacity;
@@ -238,17 +256,12 @@
         function createEditablePopup(layer) {
             const layerId = L.stamp(layer);
             const props = (layer.feature && layer.feature.properties) ? layer.feature.properties : { "Nom": "Zone" };
-            
-            let html = `<div class="edit-form">`;
-            html += `<label>Nom de l'élément</label><input type="text" value="${props.Nom || ''}" onchange="updateProp(${layerId}, 'Nom', this.value)">`;
-            
+            let html = `<div class="edit-form"><label>Nom</label><input type="text" value="${props.Nom || ''}" onchange="updateProp(${layerId}, 'Nom', this.value)">`;
             if (layer instanceof L.Path && !(layer instanceof L.Marker)) {
                 html += `<label>Couleur</label><input type="color" value="${props.color || '#3388ff'}" onchange="updateStyle(${layerId}, this.value, document.getElementById('op-${layerId}').value)">`;
-                html += `<label>Opacité remplissage</label><input type="range" id="op-${layerId}" min="0" max="1" step="0.1" value="${props.opacity || 0.2}" onchange="updateStyle(${layerId}, document.querySelector('[type=color]').value, this.value)">`;
+                html += `<label>Opacité</label><input type="range" id="op-${layerId}" min="0" max="1" step="0.1" value="${props.opacity || 0.2}" onchange="updateStyle(${layerId}, document.querySelector('[type=color]').value, this.value)">`;
             }
-
-            html += `<button class="btn btn-danger" onclick="deleteFeature(${layerId})"><i class="fa-solid fa-trash"></i> Supprimer</button>`;
-            html += `</div>`;
+            html += `<button class="btn btn-danger" onclick="deleteFeature(${layerId})"><i class="fa-solid fa-trash"></i> Supprimer</button></div>`;
             return html;
         }
 
@@ -258,18 +271,14 @@
             if(layer) group.removeLayer(layer);
         }
 
-        // --- GESTION DES DESSINS ET TEXTE ---
+        // --- DESSINS ET TEXTE ---
         map.on(L.Draw.Event.CREATED, (e) => {
             const layer = e.layer;
-            const group = layersData.find(l => l.id === activeLayerId).group;
-            group.addLayer(layer);
-            
+            const activeObj = layersData.find(l => l.id === activeLayerId);
+            activeObj.group.addLayer(layer);
             if(!layer.feature) layer.feature = { properties: { "Nom": "Nouvelle zone" } };
             layer.bindPopup(() => createEditablePopup(layer));
-            
-            lastSelectedShape = layer;
             refreshMeasure(layer);
-            layer.on('click', (ev) => { L.DomEvent.stopPropagation(ev); lastSelectedShape = layer; refreshMeasure(layer); });
         });
 
         function selectUnit(event, type) { 
@@ -285,18 +294,15 @@
             if (selectedUnitType === 'TEXT') {
                 const txt = prompt("Votre texte :");
                 if (txt) {
-                    // Récupération des styles depuis la nouvelle boite textuelle
                     const size = document.getElementById('global-text-size').value + "px";
                     const color = document.getElementById('global-text-color').value;
                     const font = document.getElementById('global-text-font').value;
                     const bold = document.getElementById('global-text-bold').checked ? "bold" : "normal";
-
                     const textIcon = L.divIcon({
                         className: 'text-marker-container',
                         html: `<div class="text-marker-element" style="font-family:${font}; font-size:${size}; color:${color}; font-weight:${bold};">${txt}</div>`,
                         iconSize: [120, 40]
                     });
-
                     const m = L.marker(e.latlng, { icon: textIcon, draggable: true }).addTo(group);
                     m.feature = { properties: { "Nom": txt, "Type": "Texte" } };
                     m.bindPopup(() => createEditablePopup(m));
@@ -308,7 +314,6 @@
                     let color = selectedUnitType==='CRS'?'blue':(selectedUnitType==='GM'?'#5D4037':(selectedUnitType==='CIE'?'red':'green'));
                     let extra = selectedUnitType==='CIE'?'unit-cie':(selectedUnitType==='BRAV'?'unit-brav':'');
                     let html = `<div class="unit-label-container"><div class="unit-box ${extra}" style="background:${color}">${selectedUnitType==='BRAV'?'<span>BRAV</span>':selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
-                    
                     const m = L.marker(e.latlng, { icon: L.divIcon({ className:'custom-icon', html:html, iconSize:[100,60] }), draggable: true }).addTo(group);
                     m.feature = { properties: { "Nom": name, "Unité": selectedUnitType, "Heure": time } };
                     m.bindPopup(() => createEditablePopup(m));
@@ -317,7 +322,6 @@
             selectedUnitType = null; map.getContainer().style.cursor = '';
         });
 
-        // --- CALCULS ---
         function refreshMeasure(layer) {
             if (!layer) return;
             const ratio = document.getElementById('ratio-slider').value;
@@ -325,14 +329,11 @@
             if (layer instanceof L.Polygon) {
                 const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
                 document.getElementById('measure-display').innerHTML = `Surface : <b>${area.toFixed(0)} m²</b><br>Capacité : <b>${Math.round(area * ratio).toLocaleString()} pers.</b>`;
-            } else if (layer instanceof L.Polyline) {
-                const dist = L.GeometryUtil.accumulatedDistance(layer.getLatLngs());
-                document.getElementById('measure-display').innerHTML = `Distance : <b>${dist.toFixed(1)} m</b>`;
             }
         }
 
-        // --- FONCTIONS SYSTÈME ---
         function promptNewLayer() { let n = prompt("Nom du calque ?"); if(n) addNewLayer(n); }
+        
         function exportToImage() {
             document.getElementById('picto-box').style.display = 'none';
             html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
@@ -349,4 +350,3 @@
 </body>
 </html>
 
-    
