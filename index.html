@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Géo-Tactique V30 – Commandement Collaboratif</title>
+<title>Géo-Tactique V30 – Pixel Perfect</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
@@ -20,7 +20,6 @@ body.dark-mode .card{ background:#222; border:1px solid #333;}
 body.dark-mode #map{ filter: brightness(0.85) contrast(1.1); }
 
 #sidebar{ width:var(--sidebar-width); background:#f8f9fa; border-right:1px solid #ddd; padding:15px; display:flex; flex-direction:column; z-index:1000; }
-
 #map{ flex:1; position:relative; }
 
 .card{ background:white; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px; }
@@ -31,7 +30,7 @@ body.dark-mode #map{ filter: brightness(0.85) contrast(1.1); }
 .search-bar{ position:absolute; top:45px; left:50px; z-index:1000; display:flex; gap:5px; }
 #search-input{ padding:8px; width:200px; border-radius:4px; border:1px solid #ccc; }
 
-.tactical-tag{ width:90px; height:65px; display:flex; flex-direction:column; align-items:center; }
+.tactical-tag{ width:90px; height:auto; display:flex; flex-direction:column; align-items:center; }
 .t-name{ background:white; border:1px solid #000; font-size:10px; font-weight:bold; padding:1px 3px; border-radius:3px 3px 0 0; }
 .t-box{ width:60px; height:20px; border:2px solid #000; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:11px; margin-top:-1px; }
 .t-time{ background:#222; color:#0f0; font-family:monospace; font-size:9px; padding:1px 3px; border:1px solid #000; border-radius:0 0 3px 3px; margin-top:-1px; }
@@ -153,9 +152,17 @@ function logEvent(text){
   document.getElementById("event-log").innerHTML = eventLog.slice(-20).join("<br>");
 }
 
-// Picto
-function setMode(type){ modePicto=type; map.getContainer().style.cursor='crosshair'; }
-function getTime(){ const d=new Date(); return d.getHours()+":"+String(d.getMinutes()).padStart(2,'0'); }
+// Fonction de création marker pixel-perfect
+function createMarker(latlng, html){
+  const tempDiv=document.createElement('div');
+  tempDiv.style.position='absolute'; tempDiv.style.visibility='hidden';
+  tempDiv.innerHTML=html; document.body.appendChild(tempDiv);
+  const w=tempDiv.offsetWidth; const h=tempDiv.offsetHeight;
+  document.body.removeChild(tempDiv);
+  const icon=L.divIcon({className:'', html:html, iconSize:[w,h], iconAnchor:[w/2,h]});
+  const marker=L.marker(latlng,{icon:icon, draggable:true}).addTo(activeLayer.group);
+  return marker;
+}
 
 // Marker click
 map.on('click', function(e){
@@ -169,14 +176,13 @@ map.on('click', function(e){
   const name=prompt("Nom unité :"); if(!name){modePicto=null;return;}
   const radius=prompt("Rayon (mètres) optionnel :"); 
   const colors={CRS:'blue',GM:'#5D4037',CIE:'red',INFO:'#2c3e50'};
-
   const html=`<div class="tactical-tag"><div class="t-name">${name}</div>
   <div class="t-box" style="background:${colors[modePicto]}">${modePicto}</div>
-  <div class="t-time">${getTime()}</div><div class="t-arrow">▲</div></div>`;
+  <div class="t-time">${new Date().getHours()+":"+String(new Date().getMinutes()).padStart(2,'0')}</div>
+  <div class="t-arrow">▲</div></div>`;
 
-  const marker=L.marker(e.latlng,{icon:L.divIcon({className:'',html:html,iconSize:[90,65],iconAnchor:[45,65]}),draggable:true}).addTo(activeLayer.group);
+  const marker=createMarker(e.latlng, html);
 
-  // Halo sélection
   marker.on('click', function(){
     if(linkMode){
       if(!firstUnit){ firstUnit=marker; return;}
@@ -189,16 +195,12 @@ map.on('click', function(e){
     marker.getElement().classList.add('selected-marker');
   });
 
-  // Radar
   if(radius && !isNaN(radius)){
     const circle=L.circle(e.latlng,{radius:Number(radius),color:colors[modePicto],fillOpacity:0.05,weight:1}).addTo(activeLayer.group);
     marker.on('drag',()=>circle.setLatLng(marker.getLatLng()));
   }
 
-  // Forces
   forceCount[modePicto]++; updateForces();
-
-  // Journal
   logEvent(`Unité ${modePicto} "${name}" ajoutée`);
 
   modePicto=null; map.getContainer().style.cursor='';
@@ -215,12 +217,10 @@ function moveUnit(marker,dest){
   },20);
 }
 
-// Sauvegarde locale simple
+// Sauvegarde locale
 function saveState(){
   const data=[]; map.eachLayer(layer=>{
-    if(layer instanceof L.Marker){
-      data.push({lat:layer.getLatLng().lat,lng:layer.getLatLng().lng});
-    }
+    if(layer instanceof L.Marker) data.push({lat:layer.getLatLng().lat,lng:layer.getLatLng().lng});
   });
   localStorage.setItem("geoTactiqueSave", JSON.stringify(data));
 }
@@ -234,7 +234,7 @@ function exportGeoJSON(){
   a.download='plan_tactique.geojson'; a.click();
 }
 
-// Initialisation
+// Init
 addLayer("Secteur 1");
 
 </script>
