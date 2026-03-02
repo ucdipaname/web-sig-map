@@ -50,6 +50,10 @@
         .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; }
         .unit-brav span { transform: rotate(-45deg); }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
+
+        /* Nouveau style pour les options de texte dans la barre latérale */
+        .text-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .text-options-grid label { font-size: 11px; font-weight: bold; display: block; margin-bottom: 3px; }
     </style>
 </head>
 <body>
@@ -81,6 +85,34 @@
                 <h3><i class="fa-solid fa-layer-group"></i> Calques</h3>
                 <div id="layers-list"></div>
                 <button class="btn btn-accent" onclick="promptNewLayer()">+ Nouveau Calque</button>
+            </div>
+
+            <div class="card" id="text-config-card">
+                <h3><i class="fa-solid fa-font"></i> Style du Texte</h3>
+                <div class="text-options-grid">
+                    <div>
+                        <label>Police</label>
+                        <select id="global-text-font">
+                            <option value="Arial">Arial</option>
+                            <option value="Georgia">Serif</option>
+                            <option value="Courier New">Code</option>
+                            <option value="Impact">Impact</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Taille (px)</label>
+                        <input type="number" id="global-text-size" value="16" min="8" max="72">
+                    </div>
+                    <div>
+                        <label>Couleur</label>
+                        <input type="color" id="global-text-color" value="#000000">
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                        <label style="margin-bottom:8px; cursor:pointer;">
+                            <input type="checkbox" id="global-text-bold" checked> Gras
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -198,7 +230,6 @@
             if(layer) {
                 if(!layer.feature) layer.feature = { properties: {} };
                 layer.feature.properties[key] = val;
-                // Si l'affichage des noms est actif, on met à jour le tooltip immédiatement
                 const currentCalque = layersData.find(l => l.id === activeLayerId);
                 if(currentCalque.showNames) refreshLayerNames(currentCalque);
             }
@@ -211,7 +242,6 @@
             let html = `<div class="edit-form">`;
             html += `<label>Nom de l'élément</label><input type="text" value="${props.Nom || ''}" onchange="updateProp(${layerId}, 'Nom', this.value)">`;
             
-            // Si c'est un polygone ou une ligne (on peut changer la couleur)
             if (layer instanceof L.Path && !(layer instanceof L.Marker)) {
                 html += `<label>Couleur</label><input type="color" value="${props.color || '#3388ff'}" onchange="updateStyle(${layerId}, this.value, document.getElementById('op-${layerId}').value)">`;
                 html += `<label>Opacité remplissage</label><input type="range" id="op-${layerId}" min="0" max="1" step="0.1" value="${props.opacity || 0.2}" onchange="updateStyle(${layerId}, document.querySelector('[type=color]').value, this.value)">`;
@@ -255,14 +285,16 @@
             if (selectedUnitType === 'TEXT') {
                 const txt = prompt("Votre texte :");
                 if (txt) {
-                    const size = prompt("Taille (ex: 16, 24) :", "16") + "px";
-                    const color = prompt("Couleur (nom ou #code) :", "#000000");
-                    const bold = confirm("Mettre en gras ?") ? "bold" : "normal";
+                    // Récupération des styles depuis la nouvelle boite textuelle
+                    const size = document.getElementById('global-text-size').value + "px";
+                    const color = document.getElementById('global-text-color').value;
+                    const font = document.getElementById('global-text-font').value;
+                    const bold = document.getElementById('global-text-bold').checked ? "bold" : "normal";
 
                     const textIcon = L.divIcon({
                         className: 'text-marker-container',
-                        html: `<div class="text-marker-element" style="font-size:${size}; color:${color}; font-weight:${bold};">${txt}</div>`,
-                        iconSize: [100, 40]
+                        html: `<div class="text-marker-element" style="font-family:${font}; font-size:${size}; color:${color}; font-weight:${bold};">${txt}</div>`,
+                        iconSize: [120, 40]
                     });
 
                     const m = L.marker(e.latlng, { icon: textIcon, draggable: true }).addTo(group);
@@ -270,7 +302,6 @@
                     m.bindPopup(() => createEditablePopup(m));
                 }
             } else {
-                // Gestion CRS, GM, CIE, BRAV originale
                 const name = prompt("Nom de l'unité ?");
                 const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
                 if (name) {
