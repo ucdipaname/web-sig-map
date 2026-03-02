@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Géo-Tactique V26 Stable</title>
+<title>Géo-Tactique V26.1 Stable</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
@@ -12,85 +12,160 @@
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
 <style>
+:root { --sidebar-width:300px; --accent:#0070F6; }
 body { margin:0; display:flex; height:100vh; font-family:Segoe UI; }
-#map { flex:1; }
 
+#sidebar {
+width:var(--sidebar-width);
+background:#f8f9fa;
+border-right:1px solid #ddd;
+padding:15px;
+display:flex;
+flex-direction:column;
+z-index:1000;
+}
+
+#map { flex:1; position:relative; }
+
+.card {
+background:white;
+padding:10px;
+margin-bottom:10px;
+border:1px solid #ddd;
+border-radius:5px;
+}
+
+.btn {
+width:100%;
+padding:8px;
+margin-top:5px;
+cursor:pointer;
+font-weight:bold;
+border-radius:4px;
+border:1px solid #ccc;
+}
+
+.btn-blue { background:var(--accent); color:white; border:none; }
+
+/* RECHERCHE */
+.search-bar {
+position:absolute;
+top:10px;
+left:50px;
+z-index:1000;
+display:flex;
+gap:5px;
+}
+
+#search-input {
+padding:8px;
+width:200px;
+border-radius:4px;
+border:1px solid #ccc;
+}
+
+/* PICTOS */
 .tactical-tag{
-    width:80px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
+width:80px;
+display:flex;
+flex-direction:column;
+align-items:center;
 }
 
 .t-name{
-    background:white;
-    border:1px solid #000;
-    font-size:10px;
-    font-weight:bold;
-    padding:1px 3px;
-    border-radius:3px 3px 0 0;
+background:white;
+border:1px solid #000;
+font-size:10px;
+font-weight:bold;
+padding:1px 3px;
+border-radius:3px 3px 0 0;
 }
 
 .t-box{
-    width:60px;
-    height:20px;
-    border:2px solid #000;
-    color:white;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:bold;
-    font-size:11px;
-    margin-top:-1px;
+width:60px;
+height:20px;
+border:2px solid #000;
+color:white;
+display:flex;
+align-items:center;
+justify-content:center;
+font-weight:bold;
+font-size:11px;
+margin-top:-1px;
 }
 
 .t-time{
-    background:#222;
-    color:#0f0;
-    font-family:monospace;
-    font-size:9px;
-    padding:1px 3px;
-    border:1px solid #000;
-    border-radius:0 0 3px 3px;
-    margin-top:-1px;
+background:#222;
+color:#0f0;
+font-family:monospace;
+font-size:9px;
+padding:1px 3px;
+border:1px solid #000;
+border-radius:0 0 3px 3px;
+margin-top:-1px;
 }
 
 .selected-marker .t-box{
-    box-shadow:0 0 8px 3px rgba(0,120,255,0.7);
+box-shadow:0 0 8px 3px rgba(0,120,255,0.7);
 }
 
 #picto-box{
-    position:absolute;
-    bottom:20px;
-    right:20px;
-    background:white;
-    padding:10px;
-    border:2px solid #333;
-    display:flex;
-    flex-direction:column;
-    gap:5px;
-    border-radius:8px;
-    z-index:1000;
+position:absolute;
+bottom:20px;
+right:20px;
+background:white;
+padding:10px;
+border:2px solid #333;
+display:flex;
+flex-direction:column;
+gap:5px;
+border-radius:8px;
+z-index:2000;
 }
 
 .p-btn{
-    width:60px;
-    height:30px;
-    color:white;
-    border:1px solid #000;
-    cursor:pointer;
-    font-size:10px;
-    font-weight:bold;
-    display:flex;
-    align-items:center;
-    justify-content:center;
+width:60px;
+height:30px;
+color:white;
+border:1px solid #000;
+cursor:pointer;
+font-size:10px;
+font-weight:bold;
+display:flex;
+align-items:center;
+justify-content:center;
 }
 </style>
 </head>
 
 <body>
 
-<div id="map"></div>
+<aside id="sidebar">
+<h2>GÉO-TACTIQUE V26.1</h2>
+
+<div class="card">
+<strong>Mesure</strong>
+<div id="stats" style="font-size:0.85rem;color:#666;">
+Tracez une zone.
+</div>
+</div>
+
+<div class="card">
+<strong>Calques</strong>
+<div id="layer-list"></div>
+<button class="btn btn-blue" onclick="addLayer()">+ Nouveau Calque</button>
+</div>
+
+<button class="btn" style="background:#27ae60;color:white;" onclick="exportGeoJSON()">Exporter GeoJSON</button>
+<button class="btn" style="margin-top:auto;" onclick="location.reload()">Réinitialiser</button>
+</aside>
+
+<div id="map">
+
+<div class="search-bar">
+<input type="text" id="search-input" placeholder="Rechercher une rue...">
+<button class="btn btn-blue" style="margin:0;" onclick="search()">OK</button>
+</div>
 
 <div id="picto-box">
 <div class="p-btn" style="background:blue;" onclick="setMode('CRS')">CRS</div>
@@ -99,25 +174,16 @@ body { margin:0; display:flex; height:100vh; font-family:Segoe UI; }
 <div class="p-btn" style="background:#2c3e50;" onclick="setMode('INFO')">INFO</div>
 </div>
 
+</div>
+
 <script>
 
-const map = L.map('map').setView([48.8566,2.3522],13);
+const map=L.map('map').setView([48.8566,2.3522],13);
 
 /* FONDS */
-const osm = L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{ attribution:'© OpenStreetMap' }
-).addTo(map);
-
-const osmLight = L.tileLayer(
-'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-{ attribution:'© OpenStreetMap © CARTO' }
-);
-
-const sat = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{ attribution:'© Esri' }
-);
+const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const osmLight=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
 L.control.layers({
 "OSM Standard":osm,
@@ -125,27 +191,60 @@ L.control.layers({
 "Satellite":sat
 }).addTo(map);
 
-/* LOGIQUE */
+/* CALQUES */
+let layers=[];
+let activeLayer=null;
 let modePicto=null;
 
+function addLayer(name="Zone "+(layers.length+1)){
+const group=new L.FeatureGroup().addTo(map);
+const id=Date.now();
+layers.push({id,name,group});
+selectLayer(id);
+}
+
+function selectLayer(id){
+activeLayer=layers.find(l=>l.id===id);
+updateUI();
+}
+
+function updateUI(){
+const list=document.getElementById('layer-list');
+list.innerHTML=layers.map(l=>`
+<div onclick="selectLayer(${l.id})"
+style="padding:5px;cursor:pointer;margin-bottom:2px;border-radius:3px;border:1px solid #ddd;
+${activeLayer.id===l.id?'background:#e7f1ff;border-color:#0070F6;':''}">
+${l.name}
+</div>`).join('');
+}
+
+/* RECHERCHE */
+async function search(){
+const val=document.getElementById('search-input').value;
+const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}`);
+const data=await res.json();
+if(data[0]) map.setView([data[0].lat,data[0].lon],17);
+}
+
+/* PICTOS */
 function setMode(type){
-    modePicto=type;
-    map.getContainer().style.cursor='crosshair';
+modePicto=type;
+map.getContainer().style.cursor='crosshair';
 }
 
 function getTime(){
-    const d=new Date();
-    return d.getHours()+":"+String(d.getMinutes()).padStart(2,'0');
+const d=new Date();
+return d.getHours()+":"+String(d.getMinutes()).padStart(2,'0');
 }
 
 map.on('click',function(e){
 
-if(!modePicto) return;
+if(!modePicto||!activeLayer) return;
 
 const name=prompt("Nom unité :");
-if(!name){ modePicto=null; return;}
+if(!name){modePicto=null;return;}
 
-const radius=prompt("Rayon en mètres (optionnel) :");
+const radius=prompt("Rayon (mètres) optionnel :");
 const colors={CRS:'blue',GM:'#5D4037',CIE:'red',INFO:'#2c3e50'};
 
 const html=`
@@ -153,20 +252,18 @@ const html=`
 <div class="t-name">${name}</div>
 <div class="t-box" style="background:${colors[modePicto]}">${modePicto}</div>
 <div class="t-time">${getTime()}</div>
-</div>
-`;
+</div>`;
 
 const marker=L.marker(e.latlng,{
 icon:L.divIcon({className:'',html:html}),
 draggable:true
-}).addTo(map);
+}).addTo(activeLayer.group);
 
-/* ANCRAGE DYNAMIQUE PIXEL PERFECT */
+/* ANCRAGE AUTO */
 setTimeout(()=>{
 const el=marker.getElement();
 const w=el.offsetWidth;
 const h=el.offsetHeight;
-
 marker.setIcon(L.divIcon({
 className:'',
 html:html,
@@ -175,7 +272,7 @@ iconAnchor:[w/2,h]
 }));
 },0);
 
-/* HALO SELECTION */
+/* HALO */
 marker.on('click',function(){
 document.querySelectorAll('.selected-marker')
 .forEach(el=>el.classList.remove('selected-marker'));
@@ -183,14 +280,13 @@ marker.getElement().classList.add('selected-marker');
 });
 
 /* CERCLE LIE */
-let circle=null;
 if(radius && !isNaN(radius)){
-circle=L.circle(e.latlng,{
+const circle=L.circle(e.latlng,{
 radius:Number(radius),
 color:colors[modePicto],
 fillOpacity:0.05,
 weight:1
-}).addTo(map);
+}).addTo(activeLayer.group);
 
 marker.on('drag',function(ev){
 circle.setLatLng(ev.target.getLatLng());
@@ -199,11 +295,20 @@ circle.setLatLng(ev.target.getLatLng());
 
 modePicto=null;
 map.getContainer().style.cursor='';
-
 });
+
+function exportGeoJSON(){
+if(!activeLayer) return;
+const data=activeLayer.group.toGeoJSON();
+const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+const a=document.createElement('a');
+a.href=URL.createObjectURL(blob);
+a.download='plan_tactique.geojson';
+a.click();
+}
+
+addLayer("Secteur 1");
 
 </script>
 </body>
 </html>
-
-
