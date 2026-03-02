@@ -19,6 +19,8 @@
     <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
     <!-- FileSaver.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Leaflet Drag Marker -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-drag-marker@1.1.0/dist/leaflet-drag-marker.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -96,6 +98,19 @@
             margin-top: 5px;
             width: 100%;
         }
+        .picto-form {
+            margin-top: 10px;
+            display: none;
+        }
+        .picto-form input {
+            margin-bottom: 5px;
+            width: 100%;
+        }
+        .picto-label {
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -129,6 +144,11 @@
                 <div class="icon" style="background: blue; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); border: 1px solid black;" title="CRS" data-type="CRS"></div>
                 <div class="icon" style="background: brown; border: 1px solid black;" title="GM" data-type="GM"></div>
                 <div class="icon" style="background: red; border-radius: 50%; border: 1px solid black;" title="CIE" data-type="CIE"></div>
+            </div>
+            <div class="picto-form" id="picto-form">
+                <input type="text" id="picto-name" placeholder="Nom (ex: CRS1)" />
+                <input type="text" id="picto-time" placeholder="Heure (ex: 14h30)" />
+                <button id="place-picto">Placer le picto</button>
             </div>
         </div>
         <div class="panel-section">
@@ -296,20 +316,59 @@
             document.getElementById('population-result').textContent = `Population estimée : ${population} personnes`;
         });
 
-        // Pictogrammes
+        // Gestion des pictos
+        let selectedPictoType = null;
         document.querySelectorAll('.icon').forEach(icon => {
             icon.addEventListener('click', () => {
-                const type = icon.getAttribute('data-type');
-                const iconOptions = {
-                    CRS: {iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,0 0,40 40,40" fill="blue" stroke="black"/></svg>'},
-                    GM: {iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect x="0" y="0" width="40" height="40" fill="brown" stroke="black"/></svg>'},
-                    CIE: {iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="red" stroke="black"/></svg>'}
-                };
-                const customIcon = L.icon(iconOptions[type]);
-                map.once('click', (e) => {
-                    L.marker(e.latlng, {icon: customIcon}).addTo(drawnItems);
+                selectedPictoType = icon.getAttribute('data-type');
+                document.getElementById('picto-form').style.display = 'block';
+            });
+        });
+
+        document.getElementById('place-picto').addEventListener('click', () => {
+            const name = document.getElementById('picto-name').value;
+            const time = document.getElementById('picto-time').value;
+            if (!selectedPictoType || !name || !time) {
+                alert("Veuillez remplir tous les champs et sélectionner un picto.");
+                return;
+            }
+
+            const iconOptions = {
+                CRS: {
+                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,0 0,40 40,40" fill="blue" stroke="black"/><text x="20" y="10" text-anchor="middle" font-size="3" fill="white">' + name + '</text><text x="20" y="35" text-anchor="middle" font-size="3" fill="white">' + time + '</text></svg>',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20],
+                    className: 'draggable-marker'
+                },
+                GM: {
+                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect x="0" y="0" width="40" height="40" fill="brown" stroke="black"/><text x="20" y="10" text-anchor="middle" font-size="3" fill="white">' + name + '</text><text x="20" y="35" text-anchor="middle" font-size="3" fill="white">' + time + '</text></svg>',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20],
+                    className: 'draggable-marker'
+                },
+                CIE: {
+                    iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="red" stroke="black"/><text x="20" y="10" text-anchor="middle" font-size="3" fill="white">' + name + '</text><text x="20" y="35" text-anchor="middle" font-size="3" fill="white">' + time + '</text></svg>',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20],
+                    className: 'draggable-marker'
+                }
+            };
+
+            const customIcon = L.icon(iconOptions[selectedPictoType]);
+            map.once('click', (e) => {
+                const marker = L.marker(e.latlng, {
+                    icon: customIcon,
+                    draggable: true
+                }).addTo(drawnItems);
+                marker.on('dragend', function() {
+                    // Optionnel : faire quelque chose quand le picto est déplacé
                 });
             });
+
+            // Réinitialise le formulaire
+            document.getElementById('picto-form').style.display = 'none';
+            document.getElementById('picto-name').value = '';
+            document.getElementById('picto-time').value = '';
         });
 
         // Texte personnalisé
@@ -323,7 +382,8 @@
                     icon: L.divIcon({
                         className: 'text-label',
                         html: `<div style="color:${color};font-family:${font};font-size:${size}px;background:white;padding:2px;">${content}</div>`
-                    })
+                    }),
+                    draggable: true
                 }).addTo(drawnItems);
             });
         });
@@ -332,6 +392,7 @@
     </script>
 </body>
 </html>
+
 
 
 
