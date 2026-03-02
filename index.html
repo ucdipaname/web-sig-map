@@ -30,19 +30,26 @@
 
         /* Formulaire Popup */
         .edit-form { display: flex; flex-direction: column; gap: 5px; min-width: 200px; padding: 5px; }
-        .edit-form input { padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
-        .edit-form label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
+        .edit-form input, .edit-form select { padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .edit-form label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; margin-top: 5px; }
 
         /* Pictos */
         #picto-box { position: absolute; bottom: 20px; right: 20px; background: white; padding: 12px; border-radius: 8px; border: 2px solid var(--dark); z-index: 2000; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
         .picto-item { width: 60px; height: 35px; color: white; border: 2px solid black; font-weight: bold; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
+        /* Tooltip Labels */
+        .layer-label { background: rgba(0,0,0,0.7); color: white; border: none; padding: 2px 5px; border-radius: 4px; font-weight: bold; }
+        
+        /* Unité CSS */
         .unit-label-container { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
         .unit-box { border: 2px solid black; color: white; font-weight: bold; display: flex; align-items: center; justify-content: center; width: 45px; height: 22px; font-size: 10px; }
         .unit-cie { border-radius: 50%; width: 35px; height: 35px; }
         .unit-brav { transform: rotate(45deg); width: 25px; height: 25px; margin-bottom: 8px; }
         .unit-brav span { transform: rotate(-45deg); }
         .unit-info { background: rgba(255,255,255,0.9); border: 1px solid black; padding: 1px 4px; font-size: 9px; margin-top: 2px; font-weight: bold; color: black; white-space: nowrap; border-radius: 2px; }
+
+        /* Texte Libre Styles */
+        .free-text-label { background: transparent; border: none; box-shadow: none; font-weight: bold; text-align: center; }
     </style>
 </head>
 <body>
@@ -93,6 +100,7 @@
                 <div class="picto-item" style="background:#5D4037" onclick="selectUnit(event, 'GM')">GM</div>
                 <div class="picto-item" style="background:red; border-radius:50%" onclick="selectUnit(event, 'CIE')">CIE</div>
                 <div class="picto-item" style="background:green; transform:scale(0.8) rotate(45deg)" onclick="selectUnit(event, 'BRAV')"><span style="transform:rotate(-45deg)">BRAV</span></div>
+                <div class="picto-item" style="background:#34495e" onclick="selectUnit(event, 'TEXT')">TEXTE</div>
             </div>
         </main>
     </div>
@@ -126,7 +134,7 @@
         function addNewLayer(name) {
             const id = Date.now();
             const group = new L.FeatureGroup().addTo(map);
-            layersData.push({ id, name, group, visible: true });
+            layersData.push({ id, name, group, showName: false });
             setActiveLayer(id);
         }
 
@@ -135,11 +143,29 @@
             updateUI();
         }
 
+        function toggleLayerName(id) {
+            const layer = layersData.find(l => l.id === id);
+            layer.showName = !layer.showName;
+            
+            layer.group.eachLayer(l => {
+                if (layer.showName) {
+                    const name = (l.feature && l.feature.properties && l.feature.properties.Nom) ? l.feature.properties.Nom : "Zone";
+                    l.bindTooltip(name, { permanent: true, direction: 'center', className: 'layer-label' }).openTooltip();
+                } else {
+                    l.unbindTooltip();
+                }
+            });
+            updateUI();
+        }
+
         function updateUI() {
             const list = document.getElementById('layers-list');
             list.innerHTML = layersData.map(l => `
-                <div onclick="setActiveLayer(${l.id})" style="padding:8px; margin-bottom:5px; border-radius:5px; border:1px solid #ddd; background:${l.id === activeLayerId ? '#e3f2fd' : 'white'}; cursor:pointer;">
-                    ${l.name}
+                <div style="padding:8px; margin-bottom:5px; border-radius:5px; border:1px solid #ddd; background:${l.id === activeLayerId ? '#e3f2fd' : 'white'}; cursor:pointer;">
+                    <div onclick="setActiveLayer(${l.id})">${l.name}</div>
+                    <div style="margin-top:5px; font-size:11px;">
+                        <input type="checkbox" ${l.showName ? 'checked' : ''} onchange="toggleLayerName(${l.id})"> Afficher noms
+                    </div>
                 </div>
             `).join('');
             
@@ -152,13 +178,15 @@
             map.addControl(window.dc);
         }
 
-        // --- ÉDITION & SUPPRESSION ---
-        function deleteFeature(layerId) {
+        // --- ÉDITION DES FORMES (COULEURS) ---
+        function updateStyle(layerId, color, opacity) {
             const group = layersData.find(l => l.id === activeLayerId).group;
             const layer = group.getLayer(layerId);
-            if(layer) {
-                group.removeLayer(layer);
-                document.getElementById('measure-display').innerHTML = "Objet supprimé.";
+            if(layer && layer.setStyle) {
+                layer.setStyle({ color: color, fillColor: color, fillOpacity: opacity });
+                if(!layer.feature) layer.feature = { properties: {} };
+                layer.feature.properties.color = color;
+                layer.feature.properties.opacity = opacity;
             }
         }
 
@@ -168,22 +196,36 @@
             if(layer) {
                 if(!layer.feature) layer.feature = { properties: {} };
                 layer.feature.properties[key] = val;
+                // Si on change le nom et que les noms sont activés, rafraichir le tooltip
+                const activeL = layersData.find(l => l.id === activeLayerId);
+                if(activeL.showName) {
+                    layer.unbindTooltip().bindTooltip(val, { permanent: true, direction: 'center', className: 'layer-label' }).openTooltip();
+                }
             }
         }
 
         function createEditablePopup(layer) {
             const layerId = L.stamp(layer);
-            const props = (layer.feature && layer.feature.properties) ? layer.feature.properties : { "Nom": "Nouveau", "Infos": "" };
+            const props = (layer.feature && layer.feature.properties) ? layer.feature.properties : { "Nom": "Zone Tactique" };
+            const isShape = (layer instanceof L.Path);
             
             let html = `<div class="edit-form">`;
-            for (let key in props) {
-                if(typeof props[key] !== 'object') {
-                    html += `<label>${key}</label><input type="text" value="${props[key]}" onchange="updateProp(${layerId}, '${key}', this.value)">`;
-                }
+            html += `<label>Nom</label><input type="text" value="${props.Nom || ''}" onchange="updateProp(${layerId}, 'Nom', this.value)">`;
+            
+            if (isShape) {
+                html += `<label>Couleur</label><input type="color" value="${props.color || '#3388ff'}" onchange="updateStyle(${layerId}, this.value, document.getElementById('op-${layerId}').value)">`;
+                html += `<label>Opacité</label><input type="range" id="op-${layerId}" min="0" max="1" step="0.1" value="${props.opacity || 0.2}" onchange="updateStyle(${layerId}, document.querySelector('[type=color]').value, this.value)">`;
             }
+
             html += `<button class="btn btn-danger" onclick="deleteFeature(${layerId})"><i class="fa-solid fa-trash"></i> Supprimer l'objet</button>`;
             html += `</div>`;
             return html;
+        }
+
+        function deleteFeature(layerId) {
+            const group = layersData.find(l => l.id === activeLayerId).group;
+            const layer = group.getLayer(layerId);
+            if(layer) group.removeLayer(layer);
         }
 
         // --- CALCULS ---
@@ -206,7 +248,7 @@
             const group = layersData.find(l => l.id === activeLayerId).group;
             group.addLayer(layer);
             
-            if(!layer.feature) layer.feature = { properties: { "Nom": "Zone Tactique", "Notes": "" } };
+            if(!layer.feature) layer.feature = { properties: { "Nom": "Zone Tactique", "color": "#3388ff", "opacity": 0.2 } };
             layer.bindPopup(() => createEditablePopup(layer));
             
             lastSelectedShape = layer;
@@ -214,9 +256,7 @@
             layer.on('click', (ev) => { L.DomEvent.stopPropagation(ev); lastSelectedShape = layer; refreshMeasure(layer); });
         });
 
-        document.getElementById('ratio-slider').oninput = () => refreshMeasure(lastSelectedShape);
-
-        // --- PICTOS ---
+        // --- PICTOS & TEXTE ---
         function selectUnit(event, type) { 
             event.stopPropagation(); 
             selectedUnitType = type; 
@@ -226,51 +266,50 @@
         map.on('click', (e) => {
             if (!selectedUnitType) return;
             const group = layersData.find(l => l.id === activeLayerId).group;
-            const name = prompt("Nom de l'unité ?");
-            const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
             
-            if (name) {
-                let color = selectedUnitType==='CRS'?'blue':(selectedUnitType==='GM'?'#5D4037':(selectedUnitType==='CIE'?'red':'green'));
-                let extra = selectedUnitType==='CIE'?'unit-cie':(selectedUnitType==='BRAV'?'unit-brav':'');
-                let html = `<div class="unit-label-container"><div class="unit-box ${extra}" style="background:${color}">${selectedUnitType==='BRAV'?'<span>BRAV</span>':selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
+            if (selectedUnitType === 'TEXT') {
+                const txt = prompt("Texte à afficher ?");
+                const size = prompt("Taille (ex: 14px, 20px) ?", "16px");
+                const color = prompt("Couleur (nom ou hex) ?", "black");
+                const isBold = confirm("En gras ?");
+
+                if (txt) {
+                    const icon = L.divIcon({
+                        className: 'free-text-label',
+                        html: `<div style="font-size:${size}; color:${color}; font-weight:${isBold ? 'bold' : 'normal'}">${txt}</div>`,
+                        iconSize: [150, 30]
+                    });
+                    const m = L.marker(e.latlng, { icon: icon, draggable: true }).addTo(group);
+                    m.feature = { properties: { "Nom": txt, "Type": "Texte" } };
+                    m.bindPopup(() => createEditablePopup(m));
+                }
+            } else {
+                const name = prompt("Nom de l'unité ?");
+                const time = prompt("Heure ?", new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
                 
-                const m = L.marker(e.latlng, { icon: L.divIcon({ className:'custom-icon', html:html, iconSize:[100,60] }), draggable: true }).addTo(group);
-                m.feature = { properties: { "Unité": selectedUnitType, "Nom": name, "Heure": time } };
-                m.bindPopup(() => createEditablePopup(m));
+                if (name) {
+                    let color = selectedUnitType==='CRS'?'blue':(selectedUnitType==='GM'?'#5D4037':(selectedUnitType==='CIE'?'red':'green'));
+                    let extra = selectedUnitType==='CIE'?'unit-cie':(selectedUnitType==='BRAV'?'unit-brav':'');
+                    let html = `<div class="unit-label-container"><div class="unit-box ${extra}" style="background:${color}">${selectedUnitType==='BRAV'?'<span>BRAV</span>':selectedUnitType}</div><div class="unit-info">${name}</div><div class="unit-info">${time}</div></div>`;
+                    
+                    const m = L.marker(e.latlng, { icon: L.divIcon({ className:'custom-icon', html:html, iconSize:[100,60] }), draggable: true }).addTo(group);
+                    m.feature = { properties: { "Unité": selectedUnitType, "Nom": name, "Heure": time } };
+                    m.bindPopup(() => createEditablePopup(m));
+                }
             }
             selectedUnitType = null; map.getContainer().style.cursor = '';
         });
 
-        // --- IMPORT ---
-        document.getElementById('sig-import').onchange = function(e) {
-            const file = e.target.files[0], reader = new FileReader();
-            const group = layersData.find(l => l.id === activeLayerId).group;
-
-            reader.onload = async (ev) => {
-                if (file.name.endsWith('.csv')) {
-                    const text = ev.target.result;
-                    const lines = text.split(/\r?\n/), sep = text.includes(';') ? ';' : ',';
-                    const headers = lines[0].split(sep).map(h => h.trim());
-                    const latIdx = headers.findIndex(h => h.toLowerCase().includes('lat')), lngIdx = headers.findIndex(h => h.toLowerCase().includes('lon') || h.toLowerCase().includes('lng'));
-
-                    lines.slice(1).forEach(line => {
-                        const cols = line.split(sep);
-                        if (cols.length > latIdx && !isNaN(parseFloat(cols[latIdx]))) {
-                            let p = {}; headers.forEach((h, i) => p[h] = cols[i]);
-                            const m = L.marker([parseFloat(cols[latIdx]), parseFloat(cols[lngIdx])]).addTo(group);
-                            m.feature = { properties: p };
-                            m.bindPopup(() => createEditablePopup(m));
-                        }
-                    });
-                } else if (file.name.endsWith('.zip')) {
-                    const geo = await shp(ev.target.result);
-                    L.geoJSON(geo, { onEachFeature: (f, l) => l.bindPopup(() => createEditablePopup(l)) }).addTo(group);
-                }
-            };
-            if(file.name.endsWith('.zip')) reader.readAsArrayBuffer(file); else reader.readAsText(file);
+        // --- RECHERCHE ---
+        document.getElementById('search-input').oninput = async function() {
+            if(this.value.length < 3) return;
+            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`);
+            const d = await r.json();
+            const res = document.getElementById('search-results');
+            res.innerHTML = d.features.map(f => `<div onclick="map.setView([${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}], 18); document.getElementById('search-results').style.display='none';" style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;">${f.properties.label}</div>`).join('');
+            res.style.display = 'block';
         };
 
-        // --- EXPORT & RECHERCHE ---
         function exportToImage() {
             document.getElementById('picto-box').style.display = 'none';
             html2canvas(document.getElementById('map'), { useCORS: true, scale: 2 }).then(canvas => {
@@ -282,16 +321,7 @@
             });
         }
 
-        document.getElementById('search-input').oninput = async function() {
-            if(this.value.length < 3) return;
-            const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(this.value)}&limit=5`);
-            const d = await r.json();
-            const res = document.getElementById('search-results');
-            res.innerHTML = d.features.map(f => `<div onclick="map.setView([${f.geometry.coordinates[1]}, ${f.geometry.coordinates[0]}], 18); document.getElementById('search-results').style.display='none';" style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;">${f.properties.label}</div>`).join('');
-            res.style.display = 'block';
-        };
-
-        function promptNewLayer() { let n = prompt("Nom ?"); if(n) addNewLayer(n); }
+        function promptNewLayer() { let n = prompt("Nom du nouveau calque ?"); if(n) addNewLayer(n); }
         addNewLayer("Secteur Tactique 1");
     </script>
 </body>
