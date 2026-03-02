@@ -2,135 +2,190 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Géo-Tactique V24 - Fix Position</title>
+    <title>Géo-Tactique V25 - Version Stable</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
     <style>
-        body { margin: 0; display: flex; height: 100vh; font-family: sans-serif; }
-        #sidebar { width: 300px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; z-index: 1000; }
-        #map { flex: 1; position: relative; }
+        :root { --sidebar-width: 300px; --accent: #0070F6; }
+        body { margin: 0; display: flex; height: 100vh; font-family: 'Segoe UI', sans-serif; }
+        
+        /* Sidebar */
+        #sidebar { width: var(--sidebar-width); background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; z-index: 1000; }
+        #map { flex: 1; z-index: 1; position: relative; }
 
-        /* --- LE FIX ABSOLU --- */
-        /* On neutralise TOUT ce que Leaflet essaie de faire */
-        .leaflet-marker-icon.tactical-fix {
-            margin: 0 !important;
-            padding: 0 !important;
-            outline: none !important;
-            background: none !important;
-            border: none !important;
-        }
-
-        /* On crée une boîte qui remonte par rapport au point d'origine */
-        .anchor-point {
-            position: absolute;
-            bottom: 0;   /* Le bas de la boîte sera sur le point de clic */
-            left: 50%;   /* On centre horizontalement */
-            transform: translateX(-50%); /* Centrage parfait */
+        /* Style des Étiquettes (Fixe pour ancrage précis) */
+        .tactical-tag {
+            width: 80px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            width: 80px;
-            pointer-events: none;
         }
+        .t-name { background: white; border: 1px solid #000; font-size: 10px; font-weight: bold; padding: 1px 3px; white-space: nowrap; border-radius: 3px 3px 0 0; width: fit-content; }
+        .t-box { width: 60px; height: 20px; border: 2px solid #000; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; margin-top: -1px; }
+        .t-time { background: #222; color: #0f0; font-family: monospace; font-size: 9px; padding: 1px 3px; border: 1px solid #000; border-radius: 0 0 3px 3px; margin-top: -1px; }
 
-        .l-name { background: white; border: 1px solid #000; font-size: 11px; font-weight: bold; padding: 1px 4px; white-space: nowrap; }
-        .l-box { width: 60px; height: 22px; border: 2px solid #000; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; margin-top: -1px; }
-        .l-time { background: #222; color: #0f0; font-family: monospace; font-size: 10px; padding: 1px 4px; border: 1px solid #000; margin-top: -1px; }
+        /* UI */
+        .card { background: white; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .btn { width: 100%; padding: 8px; margin-top: 5px; cursor: pointer; font-weight: bold; border-radius: 4px; border: 1px solid #ccc; }
+        .btn-blue { background: var(--accent); color: white; border: none; }
+        
+        #picto-box { position: absolute; bottom: 20px; right: 20px; z-index: 2000; background: white; padding: 10px; border: 2px solid #333; display: flex; flex-direction: column; gap: 5px; border-radius: 8px; }
+        .p-btn { width: 60px; height: 30px; color: white; border: 1px solid #000; cursor: pointer; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
 
-        .btn { width: 100%; padding: 10px; cursor: pointer; margin-top: 10px; font-weight: bold; }
-        #picto-box { position: absolute; bottom: 20px; right: 20px; z-index: 2000; background: white; padding: 10px; border: 2px solid #333; display: flex; flex-direction: column; gap: 5px; }
-        .p-btn { width: 60px; height: 30px; color: white; border: 1px solid #000; cursor: pointer; font-size: 10px; font-weight: bold; text-align: center; line-height: 30px; }
+        .search-bar { position: absolute; top: 10px; left: 50px; z-index: 1000; display: flex; gap: 5px; }
+        #search-input { padding: 8px; width: 200px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h3>TACTIQUE V24</h3>
-    <div id="layers"></div>
-    <button class="btn" onclick="createNewLayer()">+ Nouveau Calque</button>
-    <hr>
-    <button class="btn" style="background: green; color: white;" onclick="exportData()">Exporter .geojson</button>
-</div>
+    <aside id="sidebar">
+        <h2 style="margin-top:0;">GÉO-TACTIQUE V25</h2>
+        
+        <div class="card">
+            <strong>Outils de Mesure</strong>
+            <div id="stats" style="font-size: 0.85rem; color: #666; margin-top:5px;">Tracez une zone pour voir les infos.</div>
+        </div>
 
-<div id="map">
-    <div id="picto-box">
-        <div class="p-btn" style="background: blue;" onclick="setUnit('CRS')">CRS</div>
-        <div class="p-btn" style="background: brown;" onclick="setUnit('GM')">GM</div>
-        <div class="p-btn" style="background: red;" onclick="setUnit('CIE')">CIE</div>
-        <div class="p-btn" style="background: #2c3e50;" onclick="setUnit('INFO')">INFO</div>
+        <div class="card">
+            <strong>Calques</strong>
+            <div id="layer-list" style="margin: 10px 0;"></div>
+            <button class="btn btn-blue" onclick="addLayer()">+ Nouveau Calque</button>
+        </div>
+
+        <button class="btn" style="background: #27ae60; color: white;" onclick="exportGeoJSON()">Exporter le plan</button>
+        <button class="btn" style="margin-top: auto;" onclick="location.reload()">Réinitialiser tout</button>
+    </aside>
+
+    <div id="map">
+        <div class="search-bar">
+            <input type="text" id="search-input" placeholder="Rechercher une rue...">
+            <button class="btn btn-blue" style="margin:0;" onclick="search()">OK</button>
+        </div>
+
+        <div id="picto-box">
+            <div class="p-btn" style="background: blue;" onclick="setMode('CRS')">CRS</div>
+            <div class="p-btn" style="background: #5D4037;" onclick="setMode('GM')">GM</div>
+            <div class="p-btn" style="background: red;" onclick="setMode('CIE')">CIE</div>
+            <div class="p-btn" style="background: #2c3e50;" onclick="setMode('INFO')">INFO</div>
+        </div>
     </div>
-</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>
+        // Initialisation Carte
+        const map = L.map('map').setView([48.8566, 2.3522], 13);
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+        
+        L.control.layers({"Plan": osm, "Satellite": sat}, null, {position: 'topright'}).addTo(map);
 
-<script>
-    const map = L.map('map').setView([48.8566, 2.3522], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let layers = [];
+        let activeLayer = null;
+        let modePicto = null;
 
-    let currentLayer = null;
-    let typeToPlace = null;
+        // Fonction Recherche
+        async function search() {
+            const val = document.getElementById('search-input').value;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}`);
+            const data = await res.json();
+            if(data[0]) map.setView([data[0].lat, data[0].lon], 17);
+        }
 
-    function createNewLayer() {
-        currentLayer = new L.FeatureGroup().addTo(map);
-        const drawControl = new L.Control.Draw({
-            edit: { featureGroup: currentLayer },
-            draw: { circle: false, marker: true }
+        // Gestion des Calques et Dessin
+        function addLayer(name = "Zone " + (layers.length + 1)) {
+            const group = new L.FeatureGroup().addTo(map);
+            const id = Date.now();
+            layers.push({ id, name, group });
+            selectLayer(id);
+        }
+
+        function selectLayer(id) {
+            activeLayer = layers.find(l => l.id === id);
+            
+            // On réinitialise les outils de dessin sur le calque actif
+            if (window.drawControl) map.removeControl(window.drawControl);
+            window.drawControl = new L.Control.Draw({
+                draw: { marker: true, polygon: true, polyline: true, rectangle: true, circle: false },
+                edit: { featureGroup: activeLayer.group }
+            });
+            map.addControl(window.drawControl);
+            updateUI();
+        }
+
+        // Capture du dessin (surfacique / linéaire)
+        map.on('draw:created', function (e) {
+            const layer = e.layer;
+            activeLayer.group.addLayer(layer);
+            
+            // Calcul auto si surfacique
+            if (layer instanceof L.Polygon) {
+                const area = Math.round(turf.area(layer.toGeoJSON()));
+                document.getElementById('stats').innerHTML = `Surface : <b>${area} m²</b><br>Jauge : <b>${area*3} pers.</b>`;
+            }
         });
-        map.addControl(drawControl);
-    }
 
-    function setUnit(t) { 
-        typeToPlace = t; 
-        map.getContainer().style.cursor = 'crosshair'; 
-    }
+        // --- GESTION PICTOS ---
+        function setMode(type) {
+            modePicto = type;
+            map.getContainer().style.cursor = 'crosshair';
+        }
 
-    map.on('click', function(e) {
-        if (!typeToPlace || !currentLayer) return;
+        map.on('click', function(e) {
+            if (!modePicto || !activeLayer) return;
 
-        const name = prompt("NOM :");
-        if (!name) { resetPlacement(); return; }
-        const time = prompt("HEURE :", new Date().getHours() + ":" + String(new Date().getMinutes()).padStart(2, '0'));
+            const name = prompt("NOM :");
+            if (!name) { cancelMode(); return; }
+            const time = prompt("HEURE :", new Date().getHours() + ":" + String(new Date().getMinutes()).padStart(2, '0'));
 
-        const colors = { CRS: 'blue', GM: 'brown', CIE: 'red', INFO: '#2c3e50' };
+            const colors = { CRS: 'blue', GM: '#5D4037', CIE: 'red', INFO: '#2c3e50' };
 
-        // HTML avec le wrapper anchor-point
-        const html = `
-            <div class="anchor-point">
-                <div class="l-name">${name}</div>
-                <div class="l-box" style="background: ${colors[typeToPlace]}">${typeToPlace}</div>
-                <div class="l-time">${time}</div>
-            </div>
-        `;
+            const html = `
+                <div class="tactical-tag">
+                    <div class="t-name">${name}</div>
+                    <div class="t-box" style="background:${colors[modePicto]}">${modePicto}</div>
+                    <div class="t-time">${time}</div>
+                </div>
+            `;
 
-        // L'astuce : iconSize [1,1] et iconAnchor [0,0] pour coller au clic
-        const icon = L.divIcon({
-            className: 'tactical-fix',
-            html: html,
-            iconSize: [1, 1], 
-            iconAnchor: [0, 0] 
+            const icon = L.divIcon({
+                className: '', 
+                html: html,
+                iconSize: [80, 50],   // Taille fixe du bloc
+                iconAnchor: [40, 50]  // Ancrage : Milieu horizontal (40), BAS vertical (50)
+            });
+
+            L.marker(e.latlng, { icon: icon, draggable: true }).addTo(activeLayer.group);
+            cancelMode();
         });
 
-        L.marker(e.latlng, { icon: icon, draggable: true }).addTo(currentLayer);
-        resetPlacement();
-    });
+        function cancelMode() { modePicto = null; map.getContainer().style.cursor = ''; }
 
-    function resetPlacement() { 
-        typeToPlace = null; 
-        map.getContainer().style.cursor = ''; 
-    }
+        function updateUI() {
+            const list = document.getElementById('layer-list');
+            list.innerHTML = layers.map(l => `
+                <div onclick="selectLayer(${l.id})" style="padding:5px; cursor:pointer; margin-bottom:2px; border-radius:3px; border:1px solid #ddd; ${activeLayer.id === l.id ? 'background:#e7f1ff; border-color:#0070F6;' : ''}">
+                    <i class="fa fa-layer-group"></i> ${l.name}
+                </div>
+            `).join('');
+        }
 
-    function exportData() {
-        const data = currentLayer.toGeoJSON();
-        const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'plan.geojson';
-        a.click();
-    }
+        function exportGeoJSON() {
+            const data = activeLayer.group.toGeoJSON();
+            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'plan_tactique.geojson';
+            a.click();
+        }
 
-    createNewLayer();
-</script>
-
+        // Lancement d'un premier calque
+        addLayer("Secteur 1");
+    </script>
 </body>
 </html>
