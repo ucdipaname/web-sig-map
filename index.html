@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartographie Tactique - Focus Mesures</title>
+    <title>Cartographie Tactique - Rapport Pro</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
@@ -27,15 +27,31 @@
         .stat-line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.85em; }
         .stat-val { color: #f1c40f; font-weight: bold; }
 
-        .area-tooltip { background: rgba(20, 20, 20, 0.9) !important; border: 1px solid #2ecc71 !important; color: white !important; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 12px; text-align: center; }
+        .area-tooltip { 
+            background: rgba(0, 0, 0, 0.85) !important; 
+            border: 1px solid #f1c40f !important; 
+            color: white !important; 
+            font-weight: bold !important; 
+            padding: 6px 10px !important; 
+            border-radius: 6px !important; 
+            font-size: 11px !important; 
+            text-align: center !important;
+        }
 
         .layer-group { background: #fff; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px; padding: 8px; cursor: pointer; }
         .active-layer { border: 2px solid #3498db; background: #e8f4fd; }
+
+        /* STYLE POUR L'IMPRESSION */
+        @media print {
+            .sidebar, .leaflet-control-draw, .leaflet-control-geocoder, .leaflet-control-layers { display: none !important; }
+            #map { width: 100vw !important; height: 100vh !important; position: absolute; top: 0; left: 0; }
+            .area-tooltip { border: 2px solid black !important; background: white !important; color: black !important; box-shadow: none !important; }
+        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
     <div class="box">
         <h3>Localisation</h3>
         <div id="search-container"></div>
@@ -54,10 +70,15 @@
         <h3>Focus Sélection</h3>
         <div class="measure-box" id="stat-container">
             <div class="stat-line">Surface : <span id="area-val" class="stat-val">0</span> m²</div>
-            <div class="stat-line" style="border-top: 1px solid #555; padding-top:5px">Pers. (x3) : <span id="pers-3-val" class="stat-val" style="color:#2ecc71">0</span></div>
-            <div class="stat-line">Pers. (x4) : <span id="pers-4-val" class="stat-val" style="color:#e74c3c">0</span></div>
+            <div class="stat-line" style="border-top: 1px solid #555; padding-top:5px">Capacité (x3) : <span id="pers-3-val" class="stat-val" style="color:#2ecc71">0</span></div>
+            <div class="stat-line">Capacité (x4) : <span id="pers-4-val" class="stat-val" style="color:#e74c3c">0</span></div>
         </div>
-        <p style="font-size: 0.7em; color: #7f8c8d; margin-top: 5px;">Cliquez sur une forme pour voir ses détails.</p>
+    </div>
+
+    <div class="box">
+        <h3>Export & Rapport</h3>
+        <button onclick="window.print()" style="width:100%; background:#34495e; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; margin-bottom:5px;">🖨️ Imprimer / PDF</button>
+        <button onclick="clearCurrentLayer()" style="width:100%; background:#e74c3c; color:white; border:none; padding:5px; border-radius:4px; font-size:0.8em;">🗑️ Vider le calque</button>
     </div>
 
     <div class="box">
@@ -78,7 +99,7 @@
     const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
     const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [osmLight] });
-    L.control.layers({ "Plan Clair": osmLight, "Satellite": sat }).addTo(map);
+    const layerControl = L.control.layers({ "Plan": osmLight, "Satellite": sat }).addTo(map);
 
     let layerGroups = {};
     let activeLayerId = null;
@@ -111,69 +132,64 @@
     }).addTo(map);
     document.getElementById('search-container').appendChild(geocoder.getContainer());
 
-    // --- OUTILS DESSIN ---
+    // --- DESSIN ---
     const drawOptions = {
-        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 }, showArea: true }),
+        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 } }),
         Polyline: new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c', weight: 4 } })
     };
 
     function startDraw(type) {
-        if(!activeLayerId) return alert("Veuillez d'abord créer un calque.");
-        if(isEditing) toggleEdit(); // Désactiver édition avant nouveau tracé
+        if(!activeLayerId) return alert("Veuillez créer un calque.");
+        if(isEditing) toggleEdit();
         drawOptions[type].enable();
     }
 
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         layerGroups[activeLayerId].group.addLayer(layer);
-        
-        // Rendre la forme cliquable pour le focus
-        layer.on('click', function(ev) {
-            L.DomEvent.stopPropagation(ev);
-            updateStatsBox(layer);
-        });
-
+        layer.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateStatsBox(layer); });
+        layer.on('contextmenu', (ev) => { L.DomEvent.stopPropagation(ev); layer.remove(); resetStats(); });
         updateStatsBox(layer);
     });
 
     function updateStatsBox(layer) {
         if (layer instanceof L.Polygon) {
             const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+            const p3 = Math.round(area * 3);
+            const p4 = Math.round(area * 4);
             
-            // Sidebar
             document.getElementById('area-val').innerText = Math.round(area).toLocaleString();
-            document.getElementById('pers-3-val').innerText = Math.round(area * 3).toLocaleString();
-            document.getElementById('pers-4-val').innerText = Math.round(area * 4).toLocaleString();
+            document.getElementById('pers-3-val').innerText = p3.toLocaleString();
+            document.getElementById('pers-4-val').innerText = p4.toLocaleString();
 
-            // Carte
-            const label = `<b>${Math.round(area)} m²</b><br>Pers (x3): ${Math.round(area * 3)}`;
+            const label = `<div style="border-bottom:1px solid #555;">${Math.round(area)} m²</div>
+                           <div style="color:#2ecc71;">x3 : ${p3.toLocaleString()}</div>
+                           <div style="color:#e74c3c;">x4 : ${p4.toLocaleString()}</div>`;
             layer.bindTooltip(label, { permanent: true, direction: 'center', className: 'area-tooltip' }).openTooltip();
         }
     }
 
-    // --- GESTION ÉDITION ---
+    function resetStats() {
+        document.getElementById('area-val').innerText = "0";
+        document.getElementById('pers-3-val').innerText = "0";
+        document.getElementById('pers-4-val').innerText = "0";
+    }
+
+    function clearCurrentLayer() {
+        if(confirm("Effacer tout le calque ?")) { layerGroups[activeLayerId].group.clearLayers(); resetStats(); }
+    }
+
     function toggleEdit() {
         if (!activeLayerId) return;
         const group = layerGroups[activeLayerId].group;
         isEditing = !isEditing;
-        
-        group.eachLayer(layer => {
-            if (layer.editing) {
-                isEditing ? layer.editing.enable() : layer.editing.disable();
-            }
-        });
-
+        group.eachLayer(layer => { if (layer.editing) isEditing ? layer.editing.enable() : layer.editing.disable(); });
         const btn = document.getElementById('editBtn');
         btn.innerText = isEditing ? "✅ Terminer / Sauver" : "✏️ Modifier les tracés";
         btn.style.background = isEditing ? "#27ae60" : "#f39c12";
-
-        // Mettre à jour les stats si on a fini de modifier
-        if(!isEditing) {
-            group.eachLayer(layer => updateStatsBox(layer));
-        }
+        if(!isEditing) group.eachLayer(layer => updateStatsBox(layer));
     }
 
-    // --- CALQUES ---
     function createNewLayer(name = "Zone " + (Object.keys(layerGroups).length + 1), id = Date.now()) {
         const group = new L.FeatureGroup().addTo(map);
         layerGroups[id] = { group: group, name: name };
