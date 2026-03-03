@@ -26,9 +26,8 @@
         .measure-box { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 5px; margin-top: 5px; border-top: 4px solid #f1c40f; }
         .stat-line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.85em; }
         .stat-val { color: #f1c40f; font-weight: bold; }
-        .focus-label { font-size: 0.7em; text-transform: uppercase; color: #bdc3c7; margin-bottom: 5px; display: block; }
 
-        .area-tooltip { background: rgba(26, 26, 26, 0.9); border: 1px solid #f1c40f; color: white; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 12px; text-align: center; }
+        .area-tooltip { background: rgba(20, 20, 20, 0.9) !important; border: 1px solid #2ecc71 !important; color: white !important; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 12px; text-align: center; }
 
         .layer-group { background: #fff; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px; padding: 8px; cursor: pointer; }
         .active-layer { border: 2px solid #3498db; background: #e8f4fd; }
@@ -52,14 +51,13 @@
     </div>
 
     <div class="box">
-        <h3>Mesure de l'élément sélectionné</h3>
+        <h3>Focus Sélection</h3>
         <div class="measure-box" id="stat-container">
-            <span class="focus-label" id="focus-title">Sélectionnez une zone</span>
             <div class="stat-line">Surface : <span id="area-val" class="stat-val">0</span> m²</div>
-            <div class="stat-line">Pers. (x2) : <span id="pers-2-val" class="stat-val">0</span></div>
-            <div class="stat-line" style="border-top: 1px solid #444; padding-top: 4px;">Pers. (x3) : <span id="pers-3-val" class="stat-val" style="color:#2ecc71">0</span></div>
+            <div class="stat-line" style="border-top: 1px solid #555; padding-top:5px">Pers. (x3) : <span id="pers-3-val" class="stat-val" style="color:#2ecc71">0</span></div>
             <div class="stat-line">Pers. (x4) : <span id="pers-4-val" class="stat-val" style="color:#e74c3c">0</span></div>
         </div>
+        <p style="font-size: 0.7em; color: #7f8c8d; margin-top: 5px;">Cliquez sur une forme pour voir ses détails.</p>
     </div>
 
     <div class="box">
@@ -67,8 +65,6 @@
         <button style="width:100%; margin-bottom:10px; background:#2ecc71; color:white; border:none; padding:8px; border-radius:4px;" onclick="createNewLayer()">+ Nouveau Calque</button>
         <div id="layers-container"></div>
     </div>
-    
-    <button onclick="exportProject()" style="width:100%; padding:10px; background:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;">💾 Exporter Mission</button>
 </div>
 
 <div id="map"></div>
@@ -84,22 +80,12 @@
     const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [osmLight] });
     L.control.layers({ "Plan Clair": osmLight, "Satellite": sat }).addTo(map);
 
-    let searchMarker = null;
     let layerGroups = {};
     let activeLayerId = null;
     let isEditing = false;
-    let lastClickedLayer = null;
+    let searchMarker = null;
 
-    // --- RECHERCHE ---
-    const geocoder = L.Control.geocoder({ defaultMarkGeocode: false, collapsed: false })
-    .on('markgeocode', function(e) {
-        if (searchMarker) map.removeLayer(searchMarker);
-        searchMarker = L.marker(e.geocode.center).addTo(map).bindPopup(e.geocode.name).openPopup();
-        map.setView(e.geocode.center, 17);
-    }).addTo(map);
-    document.getElementById('search-container').appendChild(geocoder.getContainer());
-
-    // --- PLUGIN GEOMETRY (MANUEL) ---
+    // --- GEOMETRY UTIL ---
     if (!L.GeometryUtil) {
         L.GeometryUtil = {
             geodesicArea: function (latLngs) {
@@ -116,82 +102,78 @@
         };
     }
 
-    // --- DESSIN & LOGIQUE ---
-    const drawTools = {
-        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 } }),
+    // --- RECHERCHE ---
+    const geocoder = L.Control.geocoder({ defaultMarkGeocode: false, collapsed: false })
+    .on('markgeocode', function(e) {
+        if (searchMarker) map.removeLayer(searchMarker);
+        searchMarker = L.marker(e.geocode.center).addTo(map).bindPopup(e.geocode.name).openPopup();
+        map.setView(e.geocode.center, 17);
+    }).addTo(map);
+    document.getElementById('search-container').appendChild(geocoder.getContainer());
+
+    // --- OUTILS DESSIN ---
+    const drawOptions = {
+        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 }, showArea: true }),
         Polyline: new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c', weight: 4 } })
     };
 
     function startDraw(type) {
-        if(!activeLayerId) return alert("Créez un calque.");
-        if(searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
-        if(isEditing) toggleEdit();
-        drawTools[type].enable();
+        if(!activeLayerId) return alert("Veuillez d'abord créer un calque.");
+        if(isEditing) toggleEdit(); // Désactiver édition avant nouveau tracé
+        drawOptions[type].enable();
     }
 
-    map.on(L.Draw.Event.CREATED, (e) => {
+    map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         layerGroups[activeLayerId].group.addLayer(layer);
-        setupLayerEvents(layer);
-        updateDisplay(layer);
-        saveToLocal();
+        
+        // Rendre la forme cliquable pour le focus
+        layer.on('click', function(ev) {
+            L.DomEvent.stopPropagation(ev);
+            updateStatsBox(layer);
+        });
+
+        updateStatsBox(layer);
     });
 
-    function setupLayerEvents(layer) {
-        layer.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            lastClickedLayer = layer;
-            updateDisplay(layer);
-        });
-    }
-
-    function updateDisplay(layer) {
-        if (!layer) return;
-        
+    function updateStatsBox(layer) {
         if (layer instanceof L.Polygon) {
             const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
             
-            // Mise à jour Box Sidebar
-            document.getElementById('focus-title').innerText = "Zone Sélectionnée";
+            // Sidebar
             document.getElementById('area-val').innerText = Math.round(area).toLocaleString();
-            document.getElementById('pers-2-val').innerText = Math.round(area * 2).toLocaleString();
             document.getElementById('pers-3-val').innerText = Math.round(area * 3).toLocaleString();
             document.getElementById('pers-4-val').innerText = Math.round(area * 4).toLocaleString();
 
-            // Mise à jour Étiquette Carte (inclut x3)
-            const content = `<b>${Math.round(area)} m²</b><br>Pers (x3): ${Math.round(area * 3)}`;
-            if (!layer.getTooltip()) {
-                layer.bindTooltip(content, { permanent: true, direction: 'center', className: 'area-tooltip' }).openTooltip();
-            } else {
-                layer.setTooltipContent(content);
-            }
-        } else if (layer instanceof L.Polyline) {
-            const pts = layer.getLatLngs();
-            let dist = 0;
-            for (let i = 0; i < pts.length - 1; i++) dist += pts[i].distanceTo(pts[i+1]);
-            
-            document.getElementById('focus-title').innerText = "Ligne Sélectionnée";
-            document.getElementById('area-val').innerText = "---";
-            document.getElementById('pers-2-val').innerText = "---";
-            document.getElementById('pers-3-val').innerText = "---";
-            document.getElementById('pers-4-val').innerText = Math.round(dist) + " m (dist)";
+            // Carte
+            const label = `<b>${Math.round(area)} m²</b><br>Pers (x3): ${Math.round(area * 3)}`;
+            layer.bindTooltip(label, { permanent: true, direction: 'center', className: 'area-tooltip' }).openTooltip();
         }
     }
 
-    map.on('draw:editvertex draw:edited', () => { if(lastClickedLayer) updateDisplay(lastClickedLayer); });
-
-    // --- CALQUES & ÉDITION ---
+    // --- GESTION ÉDITION ---
     function toggleEdit() {
         if (!activeLayerId) return;
         const group = layerGroups[activeLayerId].group;
         isEditing = !isEditing;
-        group.eachLayer(layer => { if (layer.editing) isEditing ? layer.editing.enable() : layer.editing.disable(); });
+        
+        group.eachLayer(layer => {
+            if (layer.editing) {
+                isEditing ? layer.editing.enable() : layer.editing.disable();
+            }
+        });
+
         const btn = document.getElementById('editBtn');
-        btn.innerText = isEditing ? "✅ Sauvegarder" : "✏️ Modifier les tracés";
+        btn.innerText = isEditing ? "✅ Terminer / Sauver" : "✏️ Modifier les tracés";
         btn.style.background = isEditing ? "#27ae60" : "#f39c12";
-        if(!isEditing) saveToLocal();
+
+        // Mettre à jour les stats si on a fini de modifier
+        if(!isEditing) {
+            group.eachLayer(layer => updateStatsBox(layer));
+        }
     }
 
+    // --- CALQUES ---
     function createNewLayer(name = "Zone " + (Object.keys(layerGroups).length + 1), id = Date.now()) {
         const group = new L.FeatureGroup().addTo(map);
         layerGroups[id] = { group: group, name: name };
@@ -211,17 +193,10 @@
         }
     }
 
-    function saveToLocal() {
-        const d = {};
-        for (let i in layerGroups) d[i] = { name: layerGroups[id].name, geo: layerGroups[i].group.toGeoJSON() };
-        localStorage.setItem('map_tactique_focus', JSON.stringify(d));
-    }
-
-    window.onload = () => createNewLayer("Secteur 1");
+    window.onload = () => createNewLayer("Secteur Tactique");
 </script>
 </body>
 </html>
-
 
 
 
