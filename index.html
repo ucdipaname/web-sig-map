@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartographie Tactique - Recherche & Mesures</title>
+    <title>Cartographie Tactique - Mesures Dynamiques</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
@@ -19,17 +19,18 @@
         
         #search-container { margin-bottom: 10px; }
         .leaflet-control-geocoder { width: 100% !important; box-shadow: none !important; border: 1px solid #bdc3c7 !important; border-radius: 4px; }
-        .leaflet-control-geocoder-form input { width: 100% !important; font-size: 14px; padding: 5px; }
 
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        button { cursor: pointer; padding: 10px; border: 1px solid #bdc3c7; background: #fff; border-radius: 4px; font-weight: bold; font-size: 0.8em; transition: 0.2s; }
-        button:hover { background: #ecf0f1; }
+        button { cursor: pointer; padding: 10px; border: 1px solid #bdc3c7; background: #fff; border-radius: 4px; font-weight: bold; font-size: 0.8em; }
         
         .measure-box { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 5px; margin-top: 5px; }
-        .stat-line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.9em; }
+        .stat-line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.85em; }
         .stat-val { color: #f1c40f; font-weight: bold; }
 
-        .layer-group { background: #fff; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px; padding: 8px; cursor: pointer; font-size: 0.9em; }
+        /* Étiquettes sur la carte */
+        .area-tooltip { background: rgba(0,0,0,0.7); border: none; color: white; font-weight: bold; padding: 2px 5px; border-radius: 4px; font-size: 11px; }
+
+        .layer-group { background: #fff; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px; padding: 8px; cursor: pointer; }
         .active-layer { border: 2px solid #3498db; background: #e8f4fd; }
     </style>
 </head>
@@ -48,15 +49,17 @@
             <button onclick="startDraw('Polygon')" style="background: #e8f4fd;">⬢ Zone (m²)</button>
             <button onclick="startDraw('Polyline')" style="background: #e8f4fd;">📏 Distance (m)</button>
         </div>
-        <button id="editBtn" onclick="toggleEdit()" style="width:100%; margin-top:8px; background:#f39c12; color:white;">✏️ Modifier Tracés</button>
+        <button id="editBtn" onclick="toggleEdit()" style="width:100%; margin-top:8px; background:#f39c12; color:white; border:none; border-radius:4px; font-weight:bold;">✏️ Modifier les tracés</button>
     </div>
 
     <div class="box">
         <h3>Mesures Globales</h3>
         <div class="measure-box">
-            <div class="stat-line">Surface: <span id="area-val" class="stat-val">0</span> m²</div>
-            <div class="stat-line">Distance: <span id="dist-val" class="stat-val">0</span> m</div>
-            <div class="stat-line">Pers. (x3): <span id="pers-val" class="stat-val" style="color:#2ecc71">0</span></div>
+            <div class="stat-line">Surface Totale: <span id="area-val" class="stat-val">0</span> m²</div>
+            <div class="stat-line">Distance Totale: <span id="dist-val" class="stat-val">0</span> m</div>
+            <hr style="border: 0.5px solid #555;">
+            <div class="stat-line">Pers. (x2 - fluide): <span id="pers-2-val" class="stat-val" style="color:#2ecc71">0</span></div>
+            <div class="stat-line">Pers. (x4 - dense): <span id="pers-4-val" class="stat-val" style="color:#e74c3c">0</span></div>
         </div>
     </div>
 
@@ -66,7 +69,7 @@
         <div id="layers-container"></div>
     </div>
     
-    <button onclick="exportProject()" style="width:100%; padding:10px; background:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;">💾 Exporter le Projet</button>
+    <button onclick="exportProject()" style="width:100%; padding:10px; background:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;">💾 Exporter Mission</button>
 </div>
 
 <div id="map"></div>
@@ -76,80 +79,30 @@
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <script>
-    const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'CartoDB' });
+    const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
     const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
 
     const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [osmLight] });
     L.control.layers({ "Plan Clair": osmLight, "Satellite": sat }).addTo(map);
 
     let searchMarker = null;
-
-    // --- RECHERCHE ---
-    const geocoder = L.Control.geocoder({
-        defaultMarkGeocode: false,
-        placeholder: "Adresse...",
-        collapsed: false
-    })
-    .on('markgeocode', function(e) {
-        clearSearchMarker();
-        const center = e.geocode.center;
-        searchMarker = L.marker(center).addTo(map)
-            .bindPopup(e.geocode.name)
-            .openPopup();
-        map.setView(center, 17);
-    })
-    .addTo(map);
-
-    document.getElementById('search-container').appendChild(geocoder.getContainer());
-
-    function clearSearchMarker() {
-        if (searchMarker) {
-            map.removeLayer(searchMarker);
-            searchMarker = null;
-        }
-    }
-
     let layerGroups = {};
     let activeLayerId = null;
     let isEditing = false;
 
-    // --- DESSIN ---
-    const drawTools = {
-        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 } }),
-        Polyline: new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c', weight: 4 } })
-    };
+    // --- RECHERCHE ---
+    const geocoder = L.Control.geocoder({ defaultMarkGeocode: false, collapsed: false })
+    .on('markgeocode', function(e) {
+        clearSearchMarker();
+        const center = e.geocode.center;
+        searchMarker = L.marker(center).addTo(map).bindPopup(e.geocode.name).openPopup();
+        map.setView(center, 17);
+    }).addTo(map);
+    document.getElementById('search-container').appendChild(geocoder.getContainer());
 
-    function startDraw(type) {
-        if(!activeLayerId) return alert("Créez un calque.");
-        clearSearchMarker(); // Disparition du pointeur lors du début d'un tracé
-        if(isEditing) toggleEdit();
-        drawTools[type].enable();
-    }
+    function clearSearchMarker() { if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; } }
 
-    map.on(L.Draw.Event.CREATED, (e) => {
-        layerGroups[activeLayerId].group.addLayer(e.layer);
-        updateStats();
-        saveToLocal();
-    });
-
-    // --- CALCULS ---
-    function updateStats() {
-        let totalArea = 0, totalDist = 0;
-        for (let id in layerGroups) {
-            layerGroups[id].group.eachLayer(layer => {
-                if (layer instanceof L.Polygon) {
-                    totalArea += L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-                } else if (layer instanceof L.Polyline) {
-                    const pts = layer.getLatLngs();
-                    for (let i = 0; i < pts.length - 1; i++) totalDist += pts[i].distanceTo(pts[i+1]);
-                }
-            });
-        }
-        document.getElementById('area-val').innerText = Math.round(totalArea).toLocaleString();
-        document.getElementById('dist-val').innerText = Math.round(totalDist).toLocaleString();
-        document.getElementById('pers-val').innerText = Math.round(totalArea * 3).toLocaleString();
-    }
-
+    // --- PLUGIN GEOMETRY (MANUEL) ---
     if (!L.GeometryUtil) {
         L.GeometryUtil = {
             geodesicArea: function (latLngs) {
@@ -166,15 +119,73 @@
         };
     }
 
-    // --- CALQUES ---
+    // --- DESSIN & ETIQUETTES ---
+    const drawTools = {
+        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 } }),
+        Polyline: new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c', weight: 4 } })
+    };
+
+    function startDraw(type) {
+        if(!activeLayerId) return alert("Créez un calque.");
+        clearSearchMarker();
+        if(isEditing) toggleEdit();
+        drawTools[type].enable();
+    }
+
+    map.on(L.Draw.Event.CREATED, (e) => {
+        const layer = e.layer;
+        layerGroups[activeLayerId].group.addLayer(layer);
+        updateStats();
+        saveToLocal();
+    });
+
+    // Mise à jour pendant l'édition
+    map.on('draw:editvertex', updateStats);
+    map.on('draw:edited', updateStats);
+
+    function updateStats() {
+        let totalArea = 0;
+        let totalDist = 0;
+
+        for (let id in layerGroups) {
+            layerGroups[id].group.eachLayer(layer => {
+                if (layer instanceof L.Polygon) {
+                    const latlngs = layer.getLatLngs()[0];
+                    const area = L.GeometryUtil.geodesicArea(latlngs);
+                    totalArea += area;
+
+                    // Ajout/Mise à jour de l'étiquette sur la carte
+                    const content = `<b>${Math.round(area)} m²</b><br>Pers: ${Math.round(area * 4)}`;
+                    if (!layer.getTooltip()) {
+                        layer.bindTooltip(content, { permanent: true, direction: 'center', className: 'area-tooltip' }).openTooltip();
+                    } else {
+                        layer.setTooltipContent(content);
+                    }
+
+                } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                    const pts = layer.getLatLngs();
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        totalDist += pts[i].distanceTo(pts[i+1]);
+                    }
+                }
+            });
+        }
+
+        document.getElementById('area-val').innerText = Math.round(totalArea).toLocaleString();
+        document.getElementById('dist-val').innerText = Math.round(totalDist).toLocaleString();
+        document.getElementById('pers-2-val').innerText = Math.round(totalArea * 2).toLocaleString();
+        document.getElementById('pers-4-val').innerText = Math.round(totalArea * 4).toLocaleString();
+    }
+
+    // --- GESTION CALQUES & EDITION ---
     function toggleEdit() {
         if (!activeLayerId) return;
-        clearSearchMarker(); // Disparition du pointeur lors de l'édition
+        clearSearchMarker();
         const group = layerGroups[activeLayerId].group;
         isEditing = !isEditing;
         group.eachLayer(layer => { if (layer.editing) isEditing ? layer.editing.enable() : layer.editing.disable(); });
         const btn = document.getElementById('editBtn');
-        btn.innerText = isEditing ? "✅ Sauvegarder" : "✏️ Modifier Tracés";
+        btn.innerText = isEditing ? "✅ Sauvegarder" : "✏️ Modifier les tracés";
         btn.style.background = isEditing ? "#27ae60" : "#f39c12";
         if(!isEditing) { saveToLocal(); updateStats(); }
     }
@@ -192,7 +203,7 @@
         for (let id in layerGroups) {
             const div = document.createElement('div');
             div.className = `layer-group ${activeLayerId == id ? 'active-layer' : ''}`;
-            div.onclick = () => { activeLayerId = id; renderLayers(); };
+            div.onclick = () => { if(isEditing) toggleEdit(); activeLayerId = id; renderLayers(); };
             div.innerHTML = `<b>${layerGroups[id].name}</b>`;
             container.appendChild(div);
         }
@@ -201,16 +212,16 @@
     function saveToLocal() {
         const d = {};
         for (let i in layerGroups) d[i] = { name: layerGroups[i].name, geo: layerGroups[i].group.toGeoJSON() };
-        localStorage.setItem('map_tactique_final', JSON.stringify(d));
+        localStorage.setItem('map_tactique_v9', JSON.stringify(d));
     }
 
     function exportProject() {
-        const data = localStorage.getItem('map_tactique_final');
+        const data = localStorage.getItem('map_tactique_v9');
         const blob = new Blob([data], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mission.json'; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mission_tactique.json'; a.click();
     }
 
-    window.onload = () => createNewLayer("Secteur Principal");
+    window.onload = () => createNewLayer("Secteur 1");
 </script>
 </body>
 </html>
