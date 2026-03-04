@@ -3,143 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartographie Tactique - Rapport Pro</title>
+    <title>Cartographie Tactique Pro - QGIS Edition</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
-        body { margin: 0; display: flex; font-family: 'Segoe UI', sans-serif; height: 100vh; background: #2c3e50; overflow: hidden; }
-        .sidebar { width: 320px; background: #f4f7f6; display: flex; flex-direction: column; padding: 15px; overflow-y: auto; z-index: 1000; border-right: 2px solid #bdc3c7; }
+        :root { --sidebar-bg: #f4f7f6; --panel-right-bg: #2c3e50; --accent: #3498db; }
+        body { margin: 0; display: flex; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; background: #1a252f; overflow: hidden; }
+        
+        /* Layout */
+        .sidebar { width: 300px; background: var(--sidebar-bg); display: flex; flex-direction: column; padding: 15px; z-index: 1000; border-right: 2px solid #bdc3c7; overflow-y: auto; }
         #map { flex: 1; }
+        .right-panel { width: 280px; background: var(--panel-right-bg); color: white; padding: 15px; z-index: 1000; border-left: 2px solid #34495e; overflow-y: auto; }
 
-        .box { background: white; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h3 { margin: 0 0 10px 0; font-size: 0.85rem; color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; text-transform: uppercase; }
-        
-        #search-container { margin-bottom: 10px; }
-        .leaflet-control-geocoder { width: 100% !important; box-shadow: none !important; border: 1px solid #bdc3c7 !important; border-radius: 4px; }
+        /* Components */
+        .box { background: white; border-radius: 8px; padding: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: #333; }
+        .box-dark { background: #34495e; color: white; border: 1px solid #455a64; margin-bottom: 15px; border-radius: 8px; padding: 12px; }
+        h3 { margin: 0 0 12px 0; font-size: 0.8rem; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        .box-dark h3 { color: #ecf0f1; border-color: #7f8c8d; }
 
-        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        button { cursor: pointer; padding: 10px; border: 1px solid #bdc3c7; background: #fff; border-radius: 4px; font-weight: bold; font-size: 0.8em; }
+        /* Buttons & Inputs */
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        button { cursor: pointer; padding: 10px; border: 1px solid #bdc3c7; background: #fff; border-radius: 4px; font-weight: bold; font-size: 0.75rem; transition: all 0.3s; }
+        button:hover { background: #f0f0f0; transform: translateY(-1px); }
         
-        .measure-box { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 5px; margin-top: 5px; border-top: 4px solid #f1c40f; }
-        .stat-line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.85em; }
+        .export-btn { background: #2ecc71; color: white; border: none; width: 100%; padding: 12px; font-size: 0.9rem; margin-top: 10px; }
+        .export-btn:hover { background: #27ae60; }
+
+        input[type="file"] { display: none; }
+        .file-label { display: block; background: #5d6d7e; color: white; padding: 10px; text-align: center; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-top: 8px; border: 1px dashed #abb2b9; }
+        .file-label:hover { background: #485460; }
+
+        /* Stats & Layers */
+        .stat-line { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.85rem; }
         .stat-val { color: #f1c40f; font-weight: bold; }
+        .layer-item { background: #fff; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px; padding: 10px; cursor: pointer; transition: 0.2s; color: #2c3e50; }
+        .layer-item.active { border: 2px solid var(--accent); background: #eef7fe; box-shadow: 0 2px 4px rgba(52, 152, 219, 0.2); }
 
-        .area-tooltip { 
-            background: rgba(0, 0, 0, 0.85) !important; 
-            border: 1px solid #f1c40f !important; 
-            color: white !important; 
-            font-weight: bold !important; 
-            padding: 6px 10px !important; 
-            border-radius: 6px !important; 
-            font-size: 11px !important; 
-            text-align: center !important;
-        }
-
-        .layer-group { background: #fff; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 8px; padding: 8px; cursor: pointer; }
-        .active-layer { border: 2px solid #3498db; background: #e8f4fd; }
-
-        /* STYLE POUR L'IMPRESSION */
-        @media print {
-            .sidebar, .leaflet-control-draw, .leaflet-control-geocoder, .leaflet-control-layers { display: none !important; }
-            #map { width: 100vw !important; height: 100vh !important; position: absolute; top: 0; left: 0; }
-            .area-tooltip { border: 2px solid black !important; background: white !important; color: black !important; box-shadow: none !important; }
-        }
+        @media print { .sidebar, .right-panel, .leaflet-control-container { display: none !important; } #map { width: 100vw !important; height: 100vh !important; } }
     </style>
 </head>
 <body>
 
-<div class="sidebar" id="sidebar">
+<div class="sidebar">
     <div class="box">
-        <h3>Localisation</h3>
+        <h3>📍 Localisation</h3>
         <div id="search-container"></div>
     </div>
 
     <div class="box">
-        <h3>Outils de Mesure</h3>
+        <h3>📐 Mesures & Tracés</h3>
         <div class="btn-grid">
-            <button onclick="startDraw('Polygon')" style="background: #e8f4fd;">⬢ Zone (m²)</button>
-            <button onclick="startDraw('Polyline')" style="background: #e8f4fd;">📏 Distance (m)</button>
+            <button onclick="startDraw('Polygon')">⬢ Zone (m²)</button>
+            <button onclick="startDraw('Polyline')">📏 Ligne (m)</button>
         </div>
-        <button id="editBtn" onclick="toggleEdit()" style="width:100%; margin-top:8px; background:#f39c12; color:white; border:none; border-radius:4px; font-weight:bold;">✏️ Modifier les tracés</button>
+        <button id="editBtn" onclick="toggleEdit()" style="width:100%; margin-top:10px; background:#f39c12; color:white; border:none;">✏️ Mode Edition</button>
     </div>
 
     <div class="box">
-        <h3>Focus Sélection</h3>
-        <div class="measure-box" id="stat-container">
+        <h3>📊 Analyse Surface</h3>
+        <div id="stat-container">
             <div class="stat-line">Surface : <span id="area-val" class="stat-val">0</span> m²</div>
-            <div class="stat-line" style="border-top: 1px solid #555; padding-top:5px">Capacité (x3) : <span id="pers-3-val" class="stat-val" style="color:#2ecc71">0</span></div>
-            <div class="stat-line">Capacité (x4) : <span id="pers-4-val" class="stat-val" style="color:#e74c3c">0</span></div>
+            <div class="stat-line" style="border-top:1px solid #eee; padding-top:5px; margin-top:5px;">Capacité x3 : <span id="pers-3-val" class="stat-val" style="color:#2ecc71">0</span></div>
+            <div class="stat-line">Capacité x4 : <span id="pers-4-val" class="stat-val" style="color:#e74c3c">0</span></div>
         </div>
     </div>
 
     <div class="box">
-        <h3>Export & Rapport</h3>
-        <button onclick="window.print()" style="width:100%; background:#34495e; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; margin-bottom:5px;">🖨️ Imprimer / PDF</button>
-        <button onclick="clearCurrentLayer()" style="width:100%; background:#e74c3c; color:white; border:none; padding:5px; border-radius:4px; font-size:0.8em;">🗑️ Vider le calque</button>
-    </div>
-
-    <div class="box">
-        <h3>Calques</h3>
-        <button style="width:100%; margin-bottom:10px; background:#2ecc71; color:white; border:none; padding:8px; border-radius:4px;" onclick="createNewLayer()">+ Nouveau Calque</button>
+        <h3>🗂️ Gestion des Calques</h3>
+        <button onclick="createNewLayer()" style="width:100%; background:#3498db; color:white; border:none; padding:8px; border-radius:4px; margin-bottom:10px;">+ Nouveau Calque</button>
         <div id="layers-container"></div>
     </div>
 </div>
 
 <div id="map"></div>
 
+<div class="right-panel">
+    <div class="box-dark">
+        <h3>💾 Export QGIS / SIG</h3>
+        <p style="font-size: 0.7rem; color: #bdc3c7; line-height: 1.4;">Téléchargez vos données au format GeoJSON. Compatible avec QGIS, ArcGIS et Google Earth.</p>
+        <button class="export-btn" onclick="exportToQGIS()">📤 Exporter le Projet</button>
+    </div>
+
+    <div class="box-dark">
+        <h3>📥 Import SIG</h3>
+        <label class="file-label">📂 Shapefile (Zip)
+            <input type="file" accept=".zip" onchange="importShapefile(this)">
+        </label>
+        <label class="file-label">📄 Fichier CSV (Lat/Lon)
+            <input type="file" accept=".csv" onchange="importCSV(this)">
+        </label>
+    </div>
+
+    <div class="box-dark">
+        <h3>⚙️ Rapport & Outils</h3>
+        <button onclick="window.print()" style="width:100%; background:#ecf0f1; color:#2c3e50; border:none; padding:10px; font-weight:bold;">🖨️ Générer PDF</button>
+        <button onclick="clearCurrentLayer()" style="width:100%; background:#e74c3c; color:white; border:none; padding:8px; margin-top:10px; font-size:0.75rem;">🗑️ Vider le calque actif</button>
+    </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
 
 <script>
-    const osmLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-
-    const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [osmLight] });
-    const layerControl = L.control.layers({ "Plan": osmLight, "Satellite": sat }).addTo(map);
+    // --- INITIALISATION CARTE ---
+    const osm = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+    const map = L.map('map', { center: [48.8566, 2.3522], zoom: 13, layers: [osm] });
+    L.control.layers({ "Plan": osm, "Satellite": satellite }, null, { position: 'topright' }).addTo(map);
 
     let layerGroups = {};
     let activeLayerId = null;
     let isEditing = false;
-    let searchMarker = null;
 
-    // --- GEOMETRY UTIL ---
-    if (!L.GeometryUtil) {
-        L.GeometryUtil = {
-            geodesicArea: function (latLngs) {
-                var pointsCount = latLngs.length, area = 0.0, d2r = Math.PI / 180, p1, p2;
-                if (pointsCount > 2) {
-                    for (var i = 0; i < pointsCount; i++) {
-                        p1 = latLngs[i]; p2 = latLngs[(i + 1) % pointsCount];
-                        area += ((p2.lng - p1.lng) * d2r) * (2 + Math.sin(p1.lat * d2r) + Math.sin(p2.lat * d2r));
-                    }
-                    area = area * 6378137.0 * 6378137.0 / 2.0;
+    // --- GEOMETRY UTIL (Polyfill) ---
+    L.GeometryUtil = {
+        geodesicArea: function (latLngs) {
+            var pointsCount = latLngs.length, area = 0.0, d2r = Math.PI / 180, p1, p2;
+            if (pointsCount > 2) {
+                for (var i = 0; i < pointsCount; i++) {
+                    p1 = latLngs[i]; p2 = latLngs[(i + 1) % pointsCount];
+                    area += ((p2.lng - p1.lng) * d2r) * (2 + Math.sin(p1.lat * d2r) + Math.sin(p2.lat * d2r));
                 }
-                return Math.abs(area);
+                area = area * 6378137.0 * 6378137.0 / 2.0;
             }
-        };
+            return Math.abs(area);
+        }
+    };
+
+    // --- FONCTIONNALITÉS SIG ---
+
+    function exportToQGIS() {
+        if (!activeLayerId) return;
+        
+        // Préparation des données avec attributs enrichis
+        const collection = { type: "FeatureCollection", features: [] };
+        
+        layerGroups[activeLayerId].group.eachLayer(layer => {
+            let geojson = layer.toGeoJSON();
+            
+            // Ajout des métadonnées pour QGIS
+            geojson.properties = {
+                calque: layerGroups[activeLayerId].name,
+                date_export: new Date().toISOString(),
+                type_geom: layer instanceof L.Polygon ? "Zone" : "Ligne"
+            };
+
+            if (layer instanceof L.Polygon) {
+                const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+                geojson.properties.surface_m2 = Math.round(area);
+                geojson.properties.capa_x3 = Math.round(area * 3);
+                geojson.properties.capa_x4 = Math.round(area * 4);
+            }
+
+            collection.features.push(geojson);
+        });
+
+        const blob = new Blob([JSON.stringify(collection, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Projet_Tactique_${layerGroups[activeLayerId].name}.geojson`;
+        a.click();
     }
 
-    // --- RECHERCHE ---
-    const geocoder = L.Control.geocoder({ defaultMarkGeocode: false, collapsed: false })
-    .on('markgeocode', function(e) {
-        if (searchMarker) map.removeLayer(searchMarker);
-        searchMarker = L.marker(e.geocode.center).addTo(map).bindPopup(e.geocode.name).openPopup();
-        map.setView(e.geocode.center, 17);
-    }).addTo(map);
-    document.getElementById('search-container').appendChild(geocoder.getContainer());
+    function importShapefile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            shp(e.target.result).then(function(geojson) {
+                const imported = L.geoJSON(geojson, {
+                    onEachFeature: function(feature, layer) {
+                        layerGroups[activeLayerId].group.addLayer(layer);
+                        if (layer instanceof L.Polygon) updateStatsBox(layer);
+                    }
+                });
+                map.fitBounds(imported.getBounds());
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    }
 
-    // --- DESSIN ---
+    function importCSV(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const lines = e.target.result.split('\n');
+            lines.forEach((line, index) => {
+                if (index === 0) return; // Skip header
+                const cols = line.split(',');
+                if (cols.length >= 2) {
+                    const lat = parseFloat(cols[0]);
+                    const lon = parseFloat(cols[1]);
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        const m = L.marker([lat, lon]).addTo(layerGroups[activeLayerId].group);
+                    }
+                }
+            });
+        };
+        reader.readAsText(file);
+    }
+
+    // --- DESSIN & INTERFACE ---
     const drawOptions = {
-        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 } }),
+        Polygon: new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.3, weight: 3 } }),
         Polyline: new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c', weight: 4 } })
     };
 
     function startDraw(type) {
-        if(!activeLayerId) return alert("Veuillez créer un calque.");
+        if(!activeLayerId) return alert("Veuillez d'abord sélectionner un calque.");
         if(isEditing) toggleEdit();
         drawOptions[type].enable();
     }
@@ -147,9 +225,12 @@
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         layerGroups[activeLayerId].group.addLayer(layer);
-        layer.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateStatsBox(layer); });
-        layer.on('contextmenu', (ev) => { L.DomEvent.stopPropagation(ev); layer.remove(); resetStats(); });
         updateStatsBox(layer);
+        
+        layer.on('click', (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            updateStatsBox(layer);
+        });
     });
 
     function updateStatsBox(layer) {
@@ -162,35 +243,12 @@
             document.getElementById('pers-3-val').innerText = p3.toLocaleString();
             document.getElementById('pers-4-val').innerText = p4.toLocaleString();
 
-            const label = `<div style="border-bottom:1px solid #555;">${Math.round(area)} m²</div>
-                           <div style="color:#2ecc71;">x3 : ${p3.toLocaleString()}</div>
-                           <div style="color:#e74c3c;">x4 : ${p4.toLocaleString()}</div>`;
-            layer.bindTooltip(label, { permanent: true, direction: 'center', className: 'area-tooltip' }).openTooltip();
+            layer.bindTooltip(`<b>${Math.round(area)} m²</b>`, { permanent: false, direction: 'center' }).openTooltip();
         }
     }
 
-    function resetStats() {
-        document.getElementById('area-val').innerText = "0";
-        document.getElementById('pers-3-val').innerText = "0";
-        document.getElementById('pers-4-val').innerText = "0";
-    }
-
-    function clearCurrentLayer() {
-        if(confirm("Effacer tout le calque ?")) { layerGroups[activeLayerId].group.clearLayers(); resetStats(); }
-    }
-
-    function toggleEdit() {
-        if (!activeLayerId) return;
-        const group = layerGroups[activeLayerId].group;
-        isEditing = !isEditing;
-        group.eachLayer(layer => { if (layer.editing) isEditing ? layer.editing.enable() : layer.editing.disable(); });
-        const btn = document.getElementById('editBtn');
-        btn.innerText = isEditing ? "✅ Terminer / Sauver" : "✏️ Modifier les tracés";
-        btn.style.background = isEditing ? "#27ae60" : "#f39c12";
-        if(!isEditing) group.eachLayer(layer => updateStatsBox(layer));
-    }
-
-    function createNewLayer(name = "Zone " + (Object.keys(layerGroups).length + 1), id = Date.now()) {
+    function createNewLayer(name = "Secteur " + (Object.keys(layerGroups).length + 1)) {
+        const id = Date.now();
         const group = new L.FeatureGroup().addTo(map);
         layerGroups[id] = { group: group, name: name };
         activeLayerId = id;
@@ -202,14 +260,40 @@
         container.innerHTML = "";
         for (let id in layerGroups) {
             const div = document.createElement('div');
-            div.className = `layer-group ${activeLayerId == id ? 'active-layer' : ''}`;
+            div.className = `layer-item ${activeLayerId == id ? 'active' : ''}`;
             div.onclick = () => { activeLayerId = id; renderLayers(); };
-            div.innerHTML = `<b>${layerGroups[id].name}</b>`;
+            div.innerHTML = `<strong>${layerGroups[id].name}</strong><br><small>${layerGroups[id].group.getLayers().length} objets</small>`;
             container.appendChild(div);
         }
     }
 
-    window.onload = () => createNewLayer("Secteur Tactique");
+    function toggleEdit() {
+        isEditing = !isEditing;
+        const btn = document.getElementById('editBtn');
+        const group = layerGroups[activeLayerId].group;
+        
+        group.eachLayer(l => {
+            if (l.editing) isEditing ? l.editing.enable() : l.editing.disable();
+        });
+
+        btn.innerText = isEditing ? "✅ Terminer" : "✏️ Mode Edition";
+        btn.style.background = isEditing ? "#2ecc71" : "#f39c12";
+    }
+
+    function clearCurrentLayer() {
+        if(confirm("Confirmer la suppression de tous les objets du calque ?")) {
+            layerGroups[activeLayerId].group.clearLayers();
+            renderLayers();
+        }
+    }
+
+    // Geocoder
+    const geocoder = L.Control.geocoder({ defaultMarkGeocode: false, collapsed: false })
+        .on('markgeocode', function(e) { map.setView(e.geocode.center, 16); L.marker(e.geocode.center).addTo(map); })
+        .addTo(map);
+    document.getElementById('search-container').appendChild(geocoder.getContainer());
+
+    window.onload = () => createNewLayer("Zone Initiale");
 </script>
 </body>
 </html>
