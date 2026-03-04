@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartographie Tactique - Fix Définitif</title>
+    <title>Cartographie Tactique - Version Finale</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
@@ -17,7 +17,6 @@
         #map { flex: 1; position: relative; }
         .right-panel { width: 280px; background: var(--panel-right-bg); color: white; padding: 15px; z-index: 1000; }
 
-        /* BOUTON FLOTTANT DE VALIDATION */
         #draw-controls {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             z-index: 2000; display: none; background: white; padding: 10px;
@@ -37,14 +36,24 @@
         .layer-item.active { border: 2px solid var(--accent); background: #eef7fe; }
         .rename-btn { position: absolute; right: 8px; top: 8px; background: none; border: none; cursor: pointer; opacity: 0.5; }
 
-        .area-tooltip { background: rgba(0,0,0,0.8); border: 1px solid #f1c40f; color: white; padding: 4px; border-radius: 4px; font-weight: bold; }
+        /* Style des étiquettes sur la carte */
+        .area-tooltip { 
+            background: rgba(0,0,0,0.75) !important; 
+            border: 1px solid #fff !important; 
+            color: white !important; 
+            padding: 8px !important; 
+            border-radius: 4px !important; 
+            font-size: 11px !important;
+            line-height: 1.4 !important;
+            text-align: center !important;
+        }
     </style>
 </head>
 <body>
 
 <div id="draw-controls">
-    <button onclick="finishDrawing()" style="background:#2ecc71; color:white; border:none; padding:8px 20px; border-radius:20px; font-size:14px;">✅ VALIDER LE TRACÉ (Double-clic)</button>
-    <button onclick="cancelDrawing()" style="background:#e74c3c; color:white; border:none; padding:8px 20px; border-radius:20px; font-size:14px; margin-left:10px;">❌ ANNULER</button>
+    <button onclick="finishDrawing()" style="background:#2ecc71; color:white; border:none; padding:8px 20px; border-radius:20px;">✅ VALIDER</button>
+    <button onclick="cancelDrawing()" style="background:#e74c3c; color:white; border:none; padding:8px 20px; border-radius:20px; margin-left:10px;">❌ ANNULER</button>
 </div>
 
 <div class="sidebar">
@@ -59,7 +68,7 @@
             <button onclick="startDraw('Polygon')" style="background: #e8f4fd;">⬢ Zone (m²)</button>
             <button onclick="startDraw('Polyline')" style="background: #e8f4fd;">📏 Ligne (m)</button>
         </div>
-        <button id="editBtn" onclick="toggleEdit()" style="width:100%; margin-top:10px; background:#f39c12; color:white; border:none;">✏️ Mode Modification</button>
+        <button id="editBtn" onclick="toggleEdit()" style="width:100%; margin-top:10px; background:#f39c12; color:white; border:none; border-radius:4px;">✏️ Modifier les tracés</button>
     </div>
 
     <div class="box">
@@ -84,7 +93,6 @@
     <div style="background:#34495e; padding:15px; border-radius:8px;">
         <h3 style="color:white; border-color:#5d6d7e;">💾 Export SIG</h3>
         <button onclick="exportToQGIS()" style="width:100%; background:#2ecc71; color:white; border:none; padding:12px; font-weight:bold; border-radius:4px;">📤 EXPORTER GEOJSON</button>
-        <p style="font-size:11px; color:#bdc3c7; margin-top:10px;">Prêt pour QGIS : inclut le nom du calque et la surface.</p>
     </div>
     <br>
     <button onclick="resetAll()" style="width:100%; background:#c0392b; color:white; border:none; padding:8px; font-size:0.7rem; border-radius:4px;">⚠️ EFFACER TOUT</button>
@@ -103,8 +111,19 @@
     let isEditing = false;
     let currentHandler = null;
 
-    // --- LOGIQUE DE DESSIN ROBUSTE ---
+    // --- GEOMETRY UTIL ---
+    L.GeometryUtil = {
+        geodesicArea: function (latLngs) {
+            var pointsCount = latLngs.length, area = 0.0, d2r = Math.PI / 180, p1, p2;
+            for (var i = 0; i < pointsCount; i++) {
+                p1 = latLngs[i]; p2 = latLngs[(i + 1) % pointsCount];
+                area += ((p2.lng - p1.lng) * d2r) * (2 + Math.sin(p1.lat * d2r) + Math.sin(p2.lat * d2r));
+            }
+            return Math.abs(area * 6378137.0 * 6378137.0 / 2.0);
+        }
+    };
 
+    // --- DESSIN ---
     function startDraw(type) {
         if(!activeLayerId) return;
         if(isEditing) toggleEdit();
@@ -115,17 +134,14 @@
         if(type === 'Polygon') {
             currentHandler = new L.Draw.Polygon(map, { shapeOptions: { color: '#3498db', fillOpacity: 0.4 } });
         } else {
-            currentHandler = new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c' } });
+            currentHandler = new L.Draw.Polyline(map, { shapeOptions: { color: '#e74c3c', weight: 5 } });
         }
         currentHandler.enable();
     }
 
     function finishDrawing() {
         if(currentHandler) {
-            // Force la fin du tracé
-            if(currentHandler._poly && currentHandler._poly.getLatLngs().length > 0) {
-                currentHandler.completeShape();
-            }
+            if(currentHandler.completeShape) currentHandler.completeShape();
             currentHandler.disable();
         }
         document.getElementById('draw-controls').style.display = 'none';
@@ -139,29 +155,54 @@
     map.on(L.Draw.Event.CREATED, function (e) {
         const layer = e.layer;
         layerGroups[activeLayerId].group.addLayer(layer);
-        document.getElementById('draw-controls').style.display = 'none';
         
         updateStats(layer);
-        layer.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateStats(layer); });
+        layer.on('click', (ev) => { 
+            L.DomEvent.stopPropagation(ev); 
+            updateStats(layer); 
+        });
+        
         saveData();
         renderLayersList();
+        document.getElementById('draw-controls').style.display = 'none';
     });
 
-    // --- CALCULS & STATS ---
-
+    // --- ÉTIQUETTES & STATS ---
     function updateStats(layer) {
         if (layer instanceof L.Polygon) {
             const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-            document.getElementById('area-val').innerText = Math.round(area).toLocaleString();
-            document.getElementById('pers-3-val').innerText = Math.round(area * 3).toLocaleString();
-            document.getElementById('pers-4-val').innerText = Math.round(area * 4).toLocaleString();
-            layer.bindTooltip(`<b>${Math.round(area)} m²</b>`, { permanent: true, direction: 'center', className: 'area-tooltip' }).openTooltip();
+            const a = Math.round(area);
+            const x3 = Math.round(area * 3);
+            const x4 = Math.round(area * 4);
+
+            document.getElementById('area-val').innerText = a.toLocaleString();
+            document.getElementById('pers-3-val').innerText = x3.toLocaleString();
+            document.getElementById('pers-4-val').innerText = x4.toLocaleString();
+
+            // Création de l'étiquette multi-lignes
+            const labelContent = `
+                <b>S:</b> ${a} m²<br>
+                <b>x3:</b> ${x3} pers.<br>
+                <b>x4:</b> ${x4} pers.
+            `;
+            layer.bindTooltip(labelContent, { 
+                permanent: true, 
+                direction: 'center', 
+                className: 'area-tooltip' 
+            }).openTooltip();
+        } else if (layer instanceof L.Polyline) {
+            // Optionnel : distance pour les lignes
+            const latlngs = layer.getLatLngs();
+            let distance = 0;
+            for (let i = 0; i < latlngs.length - 1; i++) {
+                distance += latlngs[i].distanceTo(latlngs[i+1]);
+            }
+            layer.bindTooltip(`Dist: ${Math.round(distance)} m`, { permanent: true, direction: 'top' }).openTooltip();
         }
     }
 
-    // --- GESTION DES CALQUES ---
-
-    function createNewLayer(name = "Nouveau Secteur", id = Date.now()) {
+    // --- GESTION CALQUES & SYSTÈME ---
+    function createNewLayer(name = "Secteur", id = Date.now()) {
         const group = new L.FeatureGroup().addTo(map);
         layerGroups[id] = { group: group, name: name };
         activeLayerId = id;
@@ -195,31 +236,29 @@
         layerGroups[activeLayerId].group.eachLayer(l => {
             if(l.editing) isEditing ? l.editing.enable() : l.editing.disable();
         });
-        btn.innerText = isEditing ? "✅ Terminer" : "✏️ Mode Modification";
+        btn.innerText = isEditing ? "✅ Terminer" : "✏️ Modifier les tracés";
         btn.style.background = isEditing ? "#2ecc71" : "#f39c12";
         if(!isEditing) saveData();
     }
-
-    // --- SAUVEGARDE & EXPORT ---
 
     function saveData() {
         const out = {};
         for(let id in layerGroups) {
             out[id] = { name: layerGroups[id].name, geojson: layerGroups[id].group.toGeoJSON() };
         }
-        localStorage.setItem('map_tactique_final', JSON.stringify(out));
+        localStorage.setItem('map_tactique_v3', JSON.stringify(out));
     }
 
     function loadData() {
-        const saved = localStorage.getItem('map_tactique_final');
-        if(!saved) return createNewLayer("Secteur Initial");
+        const saved = localStorage.getItem('map_tactique_v3');
+        if(!saved) return createNewLayer("Secteur 1");
         const data = JSON.parse(saved);
         for(let id in data) {
             const group = new L.FeatureGroup().addTo(map);
             layerGroups[id] = { group: group, name: data[id].name };
             L.geoJSON(data[id].geojson).eachLayer(l => {
                 group.addLayer(l);
-                if(l instanceof L.Polygon) updateStats(l);
+                updateStats(l);
                 l.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateStats(l); });
             });
         }
@@ -229,7 +268,6 @@
 
     function exportToQGIS() {
         const gj = layerGroups[activeLayerId].group.toGeoJSON();
-        gj.features.forEach(f => { f.properties.calque = layerGroups[activeLayerId].name; });
         const blob = new Blob([JSON.stringify(gj)], {type: "application/json"});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -237,18 +275,7 @@
         a.click();
     }
 
-    function resetAll() { if(confirm("Tout effacer ?")) { localStorage.clear(); location.reload(); } }
-
-    L.GeometryUtil = {
-        geodesicArea: function (latLngs) {
-            var pointsCount = latLngs.length, area = 0.0, d2r = Math.PI / 180, p1, p2;
-            for (var i = 0; i < pointsCount; i++) {
-                p1 = latLngs[i]; p2 = latLngs[(i + 1) % pointsCount];
-                area += ((p2.lng - p1.lng) * d2r) * (2 + Math.sin(p1.lat * d2r) + Math.sin(p2.lat * d2r));
-            }
-            return Math.abs(area * 6378137.0 * 6378137.0 / 2.0);
-        }
-    };
+    function resetAll() { if(confirm("Supprimer toutes les données ?")) { localStorage.clear(); location.reload(); } }
 
     const geocoder = L.Control.geocoder({ defaultMarkGeocode: false, collapsed: false })
         .on('markgeocode', e => { map.setView(e.geocode.center, 16); })
